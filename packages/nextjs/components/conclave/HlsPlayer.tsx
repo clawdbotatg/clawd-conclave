@@ -29,8 +29,13 @@ export function HlsPlayer({ src, autoplay = true }: { src: string; autoplay?: bo
     const poll = async () => {
       // Check whether the playlist exists before attaching — cheaper signal
       // than waiting for hls.js to emit errors.
+      //
+      // NOTE: MediaMTX (and many HLS servers) return 404 on HEAD but 200 on
+      // GET for playlist URLs — HEAD isn't part of the HLS spec. So we use
+      // GET here and abort once we've seen the headers. The playlist is
+      // usually a few hundred bytes, so even a full GET is cheap.
       try {
-        const res = await fetch(src, { method: "HEAD", cache: "no-store" });
+        const res = await fetch(src, { cache: "no-store" });
         if (cancelled) return;
         if (!res.ok) {
           setStatus("offline");

@@ -123,29 +123,7 @@ const Live: NextPage = () => {
     }
   };
 
-  if (!isConnected || !address) {
-    return (
-      <div className="flex flex-col items-center justify-center grow px-5 py-16">
-        <h1 className="text-3xl font-bold mb-4">Enter the conclave</h1>
-        <p className="text-base-content/60 mb-6 text-center max-w-md">
-          Connect your wallet to post in chat. Each message costs {CHAT_CV_COST} CV.
-        </p>
-      </div>
-    );
-  }
-
-  if (!CONCLAVE_RELAY_URL) {
-    return (
-      <div className="flex flex-col items-center justify-center grow px-5 py-16">
-        <div className="alert alert-warning max-w-md">
-          <span>
-            <code>NEXT_PUBLIC_RELAY_URL</code> is not set. Point it at your running relay (default{" "}
-            <code>http://localhost:4000</code>).
-          </span>
-        </div>
-      </div>
-    );
-  }
+  const canPost = isConnected && !!address && !!CONCLAVE_RELAY_URL;
 
   return (
     <div className="grow flex flex-col lg:flex-row gap-4 p-4 max-w-[1600px] mx-auto w-full">
@@ -187,25 +165,39 @@ const Live: NextPage = () => {
           )}
         </div>
 
-        <form onSubmit={handleSend} className="border-t border-base-300 p-3 space-y-2">
-          <textarea
-            className="textarea textarea-bordered w-full resize-none text-sm"
-            placeholder={`Say something (${CHAT_CV_COST} CV)…`}
-            value={draft}
-            onChange={e => setDraft(e.target.value)}
-            rows={2}
-            maxLength={280}
-            disabled={posting || isSigning}
-          />
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-base-content/50">
-              {280 - draft.length} chars left · {CONCLAVE_TOKEN_SYMBOL} holder
-            </span>
-            <button type="submit" className="btn btn-primary btn-sm" disabled={!draft.trim() || posting || isSigning}>
-              {isSigning ? "sign in wallet…" : posting ? "posting…" : `Send (${CHAT_CV_COST} CV)`}
-            </button>
+        {!isConnected || !address ? (
+          <div className="border-t border-base-300 p-3 text-center text-sm text-base-content/60">
+            Connect your wallet to post ({CHAT_CV_COST} CV per message).
           </div>
-        </form>
+        ) : !CONCLAVE_RELAY_URL ? (
+          <div className="border-t border-base-300 p-3 text-center text-xs text-warning">
+            <code>NEXT_PUBLIC_RELAY_URL</code> not set — chat disabled.
+          </div>
+        ) : (
+          <form onSubmit={handleSend} className="border-t border-base-300 p-3 space-y-2">
+            <textarea
+              className="textarea textarea-bordered w-full resize-none text-sm"
+              placeholder={`Say something (${CHAT_CV_COST} CV)…`}
+              value={draft}
+              onChange={e => setDraft(e.target.value)}
+              rows={2}
+              maxLength={280}
+              disabled={posting || isSigning}
+            />
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-base-content/50">
+                {280 - draft.length} chars left · {CONCLAVE_TOKEN_SYMBOL} holder
+              </span>
+              <button
+                type="submit"
+                className="btn btn-primary btn-sm"
+                disabled={!draft.trim() || posting || isSigning || !canPost}
+              >
+                {isSigning ? "sign in wallet…" : posting ? "posting…" : `Send (${CHAT_CV_COST} CV)`}
+              </button>
+            </div>
+          </form>
+        )}
       </div>
 
       <div className="lg:hidden text-center text-xs text-base-content/40 pt-2">
