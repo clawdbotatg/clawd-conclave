@@ -21,6 +21,12 @@ export const CONCLAVE_CV_API_BASE_URL = process.env.NEXT_PUBLIC_CV_API_BASE_URL 
 // and as an optional CORS-friendly proxy for CV balance reads.
 export const CONCLAVE_RELAY_URL = process.env.NEXT_PUBLIC_RELAY_URL ?? "";
 
+// MediaMTX HLS playlist URL. Default uses the local brew/docker MediaMTX
+// with OBS pushing to path `live/conclave`. Forkers point this at their
+// own media server in production.
+export const CONCLAVE_MEDIA_HLS_URL =
+  process.env.NEXT_PUBLIC_MEDIA_HLS_URL ?? "http://localhost:8888/live/conclave/index.m3u8";
+
 export const erc20BalanceAbi = [
   {
     type: "function",

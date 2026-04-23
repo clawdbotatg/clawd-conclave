@@ -6,6 +6,7 @@ import { Address } from "@scaffold-ui/components";
 import type { NextPage } from "next";
 import toast from "react-hot-toast";
 import { useAccount, useSignMessage } from "wagmi";
+import { HlsPlayer } from "~~/components/conclave/HlsPlayer";
 import { useChatFeed } from "~~/hooks/conclave/useChatFeed";
 import {
   CV_SPEND_MESSAGE,
@@ -15,7 +16,12 @@ import {
   postChat,
   setCachedSignature,
 } from "~~/utils/conclave/chat";
-import { CONCLAVE_CV_API_BASE_URL, CONCLAVE_RELAY_URL, CONCLAVE_TOKEN_SYMBOL } from "~~/utils/conclave/config";
+import {
+  CONCLAVE_CV_API_BASE_URL,
+  CONCLAVE_MEDIA_HLS_URL,
+  CONCLAVE_RELAY_URL,
+  CONCLAVE_TOKEN_SYMBOL,
+} from "~~/utils/conclave/config";
 
 const CHAT_CV_COST = 1;
 
@@ -143,13 +149,10 @@ const Live: NextPage = () => {
 
   return (
     <div className="grow flex flex-col lg:flex-row gap-4 p-4 max-w-[1600px] mx-auto w-full">
-      {/* Video placeholder — will become the MediaMTX player in Phase 2 */}
-      <div className="flex-1 min-h-[60vh] lg:min-h-0 bg-base-300 rounded-xl flex items-center justify-center text-base-content/40 relative">
-        <div className="absolute top-3 left-3 badge badge-neutral">offline</div>
-        <div className="text-center">
-          <div className="text-5xl mb-2">🦞</div>
-          <div className="text-sm">Stream will appear here in Phase 2.</div>
-        </div>
+      {/* HLS player backed by MediaMTX. Polls the playlist while offline so
+          it flips to playing as soon as OBS starts pushing. */}
+      <div className="flex-1 min-h-[60vh] lg:min-h-0">
+        <HlsPlayer src={CONCLAVE_MEDIA_HLS_URL} />
       </div>
 
       {/* Chat column */}

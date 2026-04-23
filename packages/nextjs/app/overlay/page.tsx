@@ -12,8 +12,16 @@ type Bubble = ChatEvent & { bornAt: number };
 const shortAddress = (addr: string) => (addr.startsWith("0x") ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : addr);
 
 const Overlay: NextPage = () => {
-  const { messages } = useChatFeed();
+  const { messages, connected } = useChatFeed();
   const [bubbles, setBubbles] = useState<Bubble[]>([]);
+  // Dev preview mode (?preview=1) shows a dark backdrop + connection status
+  // dot so you can see that the overlay is working before you wire it into
+  // OBS as a transparent browser source.
+  const [preview, setPreview] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    setPreview(new URLSearchParams(window.location.search).has("preview"));
+  }, []);
 
   // Track which message ids we've already flown in, so the seed fetch
   // doesn't spam the overlay with stale messages when OBS first loads.
@@ -45,7 +53,14 @@ const Overlay: NextPage = () => {
   }, [bubbles.length]);
 
   return (
-    <div className="overlay-root">
+    <div className={`overlay-root ${preview ? "overlay-preview" : ""}`}>
+      {preview && (
+        <div className="overlay-devbar">
+          <span className={`overlay-dot ${connected ? "overlay-dot-on" : "overlay-dot-off"}`} />
+          {connected ? "WS connected" : "WS disconnected"} · {bubbles.length} bubble{bubbles.length === 1 ? "" : "s"} ·
+          preview mode (drop <code>?preview=1</code> before using in OBS)
+        </div>
+      )}
       <div className="overlay-column">
         {bubbles.map(b => (
           <div key={b.id} className="overlay-bubble">
@@ -58,6 +73,32 @@ const Overlay: NextPage = () => {
 
       <style>{`
         :root, html, body { background: transparent !important; }
+        .overlay-preview, .overlay-preview :where(html, body) {
+          background: #0b0c10 !important;
+          min-height: 100vh;
+          color: #eee;
+        }
+        .overlay-devbar {
+          position: fixed;
+          top: 12px;
+          left: 12px;
+          padding: 6px 10px;
+          border-radius: 8px;
+          background: rgba(0, 0, 0, 0.55);
+          color: #ddd;
+          font-size: 12px;
+          font-family: ui-monospace, Menlo, monospace;
+        }
+        .overlay-dot {
+          display: inline-block;
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+          margin-right: 6px;
+          vertical-align: middle;
+        }
+        .overlay-dot-on { background: #22c55e; }
+        .overlay-dot-off { background: #ef4444; }
         .overlay-root {
           position: fixed;
           inset: 0;

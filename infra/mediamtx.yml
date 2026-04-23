@@ -19,7 +19,7 @@ hlsVariant: lowLatency
 hlsSegmentCount: 7
 hlsSegmentDuration: 1s
 hlsPartDuration: 200ms
-hlsAllowOrigin: "*"
+hlsAllowOrigins: ["*"]
 
 # WebRTC for ultra-low-latency playback (optional; forkers can turn off)
 webrtc: yes
