@@ -7,10 +7,12 @@ Wants=network-online.target
 Type=simple
 User=ubuntu
 WorkingDirectory=/home/ubuntu/clawd-conclave
-# The MediaMTX config lives in the repo. runOnReady uses ffmpeg (installed via apt)
-# to fan out the incoming stream to YouTube when YOUTUBE_STREAM_KEY is set.
-EnvironmentFile=-/home/ubuntu/clawd-conclave/.env.stream
-ExecStart=/usr/local/bin/mediamtx /home/ubuntu/clawd-conclave/infra/mediamtx.yml
+# EnvironmentFile provides YOUTUBE_STREAM_KEY + MEDIAMTX_PUBLISH_USER/PASS.
+EnvironmentFile=/home/ubuntu/clawd-conclave/.env.stream
+# Render the runtime config (substitutes publisher creds) before starting.
+# MediaMTX v1.17 doesn't reliably do env substitution in the config itself.
+ExecStartPre=/usr/bin/env bash /home/ubuntu/clawd-conclave/infra/render-mediamtx.sh
+ExecStart=/usr/local/bin/mediamtx /home/ubuntu/clawd-conclave/infra/mediamtx.runtime.yml
 Restart=on-failure
 RestartSec=3
 # Tighter resource caps so a runaway MediaMTX can't starve zkllmapi.

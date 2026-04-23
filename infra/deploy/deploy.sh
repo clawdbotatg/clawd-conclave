@@ -69,6 +69,10 @@ say "building frontend (static export)"
 ( cd packages/nextjs && NEXT_PUBLIC_IPFS_BUILD=true yarn build )
 test -f packages/nextjs/out/index.html || { echo "frontend build didn't produce out/index.html"; exit 1; }
 
+# --- render mediamtx runtime config --------------------------------------
+say "rendering mediamtx runtime config from env"
+bash infra/render-mediamtx.sh
+
 # --- init SQLite + push schema -------------------------------------------
 say "pushing relay DB schema"
 ( cd packages/relay && mkdir -p data && yarn db:push )

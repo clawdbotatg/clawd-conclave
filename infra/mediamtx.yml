@@ -23,8 +23,8 @@ authInternalUsers:
       - action: api
       - action: metrics
       - action: pprof
-  - user: ${MEDIAMTX_PUBLISH_USER}
-    pass: ${MEDIAMTX_PUBLISH_PASS}
+  - user: $MEDIAMTX_PUBLISH_USER
+    pass: $MEDIAMTX_PUBLISH_PASS
     ips: []
     permissions:
       - action: publish

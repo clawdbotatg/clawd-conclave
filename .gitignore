@@ -31,3 +31,7 @@ data/
 .env.*
 packages/relay/.env
 packages/relay/.env.*
+
+# MediaMTX runtime config is generated from infra/mediamtx.yml with env
+# substitution — it ends up containing the publisher password literal.
+infra/mediamtx.runtime.yml

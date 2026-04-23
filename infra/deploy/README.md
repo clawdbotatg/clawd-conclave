@@ -40,11 +40,20 @@ NEXT_PUBLIC_RELAY_URL=https://relay.larv.ai
 NEXT_PUBLIC_MEDIA_HLS_URL=https://media.larv.ai/live/conclave/index.m3u8
 ```
 
-### `.env.stream` (optional)
+### `.env.stream` (required — MediaMTX won't start without the publisher creds)
 ```
+# RTMP publish auth — generate with: openssl rand -hex 16
+MEDIAMTX_PUBLISH_USER=conclave
+MEDIAMTX_PUBLISH_PASS=<random hex>
+
+# Optional: auto-fanout to YouTube when a stream goes live.
 YOUTUBE_STREAM_KEY=<from YouTube Studio>
 YOUTUBE_RTMP_URL=rtmp://a.rtmp.youtube.com/live2
 ```
+
+OBS will use:
+- Server: `rtmp://MEDIAMTX_PUBLISH_USER:MEDIAMTX_PUBLISH_PASS@conclave.larv.ai:1935/live`
+- Stream Key: `conclave`
 
 ## Deploy
 
