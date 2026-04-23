@@ -4,8 +4,30 @@
 # auth + dynamic paths via the HTTP API in Phase 2.
 
 # Admin API — the relay talks to this to mint stream keys and start/stop paths.
+# Only bound to loopback so nginx / the relay talks to it but the internet can't.
 api: yes
-apiAddress: :9997
+apiAddress: 127.0.0.1:9997
+
+# Publisher auth.
+# Playback (HLS/WebRTC) stays open to the world — that's the public broadcast.
+# Publish (RTMP ingest) requires the creds set in .env.stream /
+# MEDIAMTX_PUBLISH_USER + MEDIAMTX_PUBLISH_PASS. That way opening port 1935 to
+# 0.0.0.0/0 doesn't let a random scanner grab the path out from under OBS.
+authInternalUsers:
+  - user: any
+    pass:
+    ips: []
+    permissions:
+      - action: read
+      - action: playback
+      - action: api
+      - action: metrics
+      - action: pprof
+  - user: ${MEDIAMTX_PUBLISH_USER}
+    pass: ${MEDIAMTX_PUBLISH_PASS}
+    ips: []
+    permissions:
+      - action: publish
 
 # RTMP ingest (OBS pushes here)
 rtmp: yes
