@@ -85,6 +85,15 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now mediamtx.service
 sudo systemctl enable --now conclave-relay.service
 
+# --- ensure nginx (www-data) can traverse the home dir to reach out/ ------
+# Default Ubuntu EC2 AMIs ship /home/ubuntu as 750, so www-data can't stat
+# under it. Open x (traverse) for others — the actual file contents remain
+# protected by their own 600/644 perms (e.g. .env files stay 600).
+if [[ "$(stat -c '%a' /home/ubuntu)" != "755" ]]; then
+  say "loosening /home/ubuntu to 755 so nginx can traverse"
+  sudo chmod 755 /home/ubuntu
+fi
+
 # --- nginx sites ---------------------------------------------------------
 say "installing nginx sites (not enabling HTTPS yet — certbot does that)"
 sudo install -m 0644 infra/deploy/nginx/conclave.larv.ai.conf /etc/nginx/sites-available/conclave.larv.ai
