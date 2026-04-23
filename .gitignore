@@ -25,9 +25,9 @@ dist
 # docker volumes (postgres data)
 data/
 
-# local env
+# local env — glob catches .env, .env.local, .env.development,
+# .env.stream, and anything else that starts with ".env."
 .env
-.env.local
-.env.development
-.env.production
+.env.*
 packages/relay/.env
+packages/relay/.env.*

@@ -1,0 +1,21 @@
+[Unit]
+Description=MediaMTX (conclave media server)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/clawd-conclave
+# The MediaMTX config lives in the repo. runOnReady uses ffmpeg (installed via apt)
+# to fan out the incoming stream to YouTube when YOUTUBE_STREAM_KEY is set.
+EnvironmentFile=-/home/ubuntu/clawd-conclave/.env.stream
+ExecStart=/usr/local/bin/mediamtx /home/ubuntu/clawd-conclave/infra/mediamtx.yml
+Restart=on-failure
+RestartSec=3
+# Tighter resource caps so a runaway MediaMTX can't starve zkllmapi.
+CPUQuota=150%
+MemoryMax=2G
+
+[Install]
+WantedBy=multi-user.target

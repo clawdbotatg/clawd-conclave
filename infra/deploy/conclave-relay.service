@@ -1,0 +1,20 @@
+[Unit]
+Description=CLAWD Conclave relay (Fastify + SQLite)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/clawd-conclave/packages/relay
+EnvironmentFile=/home/ubuntu/clawd-conclave/packages/relay/.env
+# tsx at runtime — TypeScript is transpiled on the fly. Fine for a low-QPS
+# Fastify server; swap for a compiled bundle if we ever care about cold-start.
+ExecStart=/usr/bin/node --import tsx/esm src/index.ts
+Restart=on-failure
+RestartSec=3
+CPUQuota=100%
+MemoryMax=512M
+
+[Install]
+WantedBy=multi-user.target
