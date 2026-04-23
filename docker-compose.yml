@@ -1,0 +1,54 @@
+# CLAWD Conclave — self-hostable stack.
+# `docker compose up` gives a forker everything they need to run a conclave:
+# a Postgres database, a MediaMTX media server (RTMP in, HLS/WebRTC out),
+# and the relay server. The Next.js frontend is built separately and
+# deployed to Vercel or pinned to IPFS.
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-conclave}
+      POSTGRES_DB: ${POSTGRES_DB:-conclave}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - ./data/db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d conclave"]
+      interval: 5s
+      retries: 10
+
+  # MediaMTX: OSS media server. Accepts RTMP from OBS, serves HLS/LL-HLS
+  # and WebRTC to viewers. No account, no API keys, one Go binary.
+  # OBS pushes to rtmp://<host>:1935/live/<streamKey>
+  # Browsers pull HLS at http://<host>:8888/live/<streamKey>/index.m3u8
+  mediamtx:
+    image: bluenviron/mediamtx:latest
+    ports:
+      - "${MEDIAMTX_RTMP_PORT:-1935}:1935" # RTMP ingest (OBS)
+      - "${MEDIAMTX_HLS_PORT:-8888}:8888" # HLS / LL-HLS playback
+      - "${MEDIAMTX_WEBRTC_PORT:-8889}:8889" # WebRTC playback (low latency)
+      - "${MEDIAMTX_API_PORT:-9997}:9997" # admin API (relay calls this)
+    volumes:
+      - ./infra/mediamtx.yml:/mediamtx.yml:ro
+
+  relay:
+    build:
+      context: .
+      dockerfile: packages/relay/Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PORT: 4000
+      HOST: 0.0.0.0
+      CORS_ORIGINS: ${CORS_ORIGINS:-*}
+      CV_API_BASE_URL: ${CV_API_BASE_URL:-https://larv.ai/api/cv}
+      CV_SPEND_SECRET: ${CV_SPEND_SECRET:-}
+      DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:-conclave}@db:5432/${POSTGRES_DB:-conclave}
+      SIWE_SESSION_SECRET: ${SIWE_SESSION_SECRET:-}
+      ADMIN_ADDRESSES: ${ADMIN_ADDRESSES:-}
+      MEDIAMTX_API_URL: http://mediamtx:9997
+    ports:
+      - "${RELAY_PORT:-4000}:4000"

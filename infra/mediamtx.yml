@@ -1,0 +1,32 @@
+# MediaMTX config for the conclave. Accepts RTMP from OBS, serves HLS and
+# WebRTC to browsers. See https://github.com/bluenviron/mediamtx for the
+# full reference. Intentionally minimal — the relay will push per-session
+# auth + dynamic paths via the HTTP API in Phase 2.
+
+# Admin API — the relay talks to this to mint stream keys and start/stop paths.
+api: yes
+apiAddress: :9997
+
+# RTMP ingest (OBS pushes here)
+rtmp: yes
+rtmpAddress: :1935
+
+# HLS/LL-HLS for playback in any browser via hls.js
+hls: yes
+hlsAddress: :8888
+hlsAlwaysRemux: yes
+hlsVariant: lowLatency
+hlsSegmentCount: 7
+hlsSegmentDuration: 1s
+hlsPartDuration: 200ms
+hlsAllowOrigin: "*"
+
+# WebRTC for ultra-low-latency playback (optional; forkers can turn off)
+webrtc: yes
+webrtcAddress: :8889
+
+# Pathless wildcard — any RTMP push creates a path. In Phase 2 we'll switch
+# this to per-session authenticated paths so only the conclave admin can
+# start a stream.
+paths:
+  all_others:

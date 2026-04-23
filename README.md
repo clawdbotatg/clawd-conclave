@@ -1,83 +1,96 @@
-# 🏗 Scaffold-ETH 2
+# CLAWD Conclave
 
-<h4 align="center">
-  <a href="https://docs.scaffoldeth.io">Documentation</a> |
-  <a href="https://scaffoldeth.io">Website</a>
-</h4>
+A token-gated live broadcast for `$CLAWD` stakers. Holders spend **Conviction (CV)** from [larv.ai](https://larv.ai) to post chat, trigger engagements, and summon the agent — every message baked straight into the broadcast by OBS and restreamed out to YouTube / X.
 
-🧪 An open-source, up-to-date toolkit for building decentralized applications (dapps) on the Ethereum blockchain. It's designed to make it easier for developers to create and deploy smart contracts and build user interfaces that interact with those contracts.
+Think Twitch, but the only currency is conviction — and the whole stack is open-source and forkable, so anyone can run their own conclave with their own token.
 
-> [!NOTE]
-> 🤖 Scaffold-ETH 2 is AI-ready! It has everything agents need to build on Ethereum. Check `.agents/`, `.claude/`, `.opencode` or `.cursor/` for more info.
+**Repo:** [github.com/clawdbotatg/clawd-conclave](https://github.com/clawdbotatg/clawd-conclave) · see [`PLAN.md`](./PLAN.md) for the full architecture and phase plan.
 
-⚙️ Built using NextJS, RainbowKit, Foundry, Wagmi, Viem, and Typescript.
+---
 
-- ✅ **Contract Hot Reload**: Your frontend auto-adapts to your smart contract as you edit it.
-- 🪝 **[Custom hooks](https://docs.scaffoldeth.io/hooks/)**: Collection of React hooks wrapper around [wagmi](https://wagmi.sh/) to simplify interactions with smart contracts with typescript autocompletion.
-- 🧱 [**Components**](https://docs.scaffoldeth.io/components/): Collection of common web3 components to quickly build your frontend.
-- 🔥 **Burner Wallet & Local Faucet**: Quickly test your application with a burner wallet and local faucet.
-- 🔐 **Integration with Wallet Providers**: Connect to different wallet providers and interact with the Ethereum network.
+## Design principles — CROPs
 
-![Debug Contracts tab](https://github.com/scaffold-eth/scaffold-eth-2/assets/55535804/b237af0c-5027-4849-a5c1-2e31495cccb1)
+1. **C**ensorship-resistant — no SaaS in the critical path. Primary deploy is Vercel, but the frontend is also a static build pinned to IPFS for `eth.link` / `eth.limo` access. Streamer's OBS holds all restream keys.
+2. **R**eusable / forkable — swap `$CLAWD` for any ERC-20 and `larv.ai` for any CV service via env vars. One command to clone and run.
+3. **O**pen source — every component is OSS. MediaMTX for video, Postgres, Fastify, Next.js, Scaffold-ETH 2. No proprietary SDKs.
+4. **P**rivate — no tracking, no analytics, no phone-home.
+5. **S**ecure — SIWE for auth, signed messages with nonces for every state-changing action, secrets only on the server.
 
-## Requirements
-
-Before you begin, you need to install the following tools:
-
-- [Node (>= v20.18.3)](https://nodejs.org/en/download/)
-- Yarn ([v1](https://classic.yarnpkg.com/en/docs/install/) or [v2+](https://yarnpkg.com/getting-started/install))
-- [Git](https://git-scm.com/downloads)
-
-## Quickstart
-
-To get started with Scaffold-ETH 2, follow the steps below:
-
-1. Install dependencies if it was skipped in CLI:
+## Architecture
 
 ```
-cd my-dapp-example
+  Streamer's OBS ── RTMP ──▶ MediaMTX ── HLS/LL-HLS ──▶ in-app viewers
+                     │
+                     ├──▶ YouTube Live   (OBS Multi-RTMP, key never leaves OBS)
+                     └──▶ X Live         (same)
+
+  viewer browser ─── SIWE + signed CV-spend ──▶ Relay ── larv.ai CV API
+                                                  │
+                                                  └── Postgres (chat, engagements, nonces)
+
+  viewer browser ─── WebSocket ──▶ Relay /room       (chat feed)
+  OBS browser-src ── WebSocket ──▶ Relay /overlay    (chat baked into stream)
+```
+
+- **Frontend** (`packages/nextjs/`) — Next.js App Router, wagmi, RainbowKit, DaisyUI. Static-exportable — same build runs on Vercel or gets pinned to IPFS.
+- **Relay** (`packages/relay/`) — Fastify + WebSocket + Drizzle. Handles SIWE, CV-spend proxy, chat/engagement fanout.
+- **Contracts** (`packages/foundry/`) — SE-2 Foundry. Minimal on-chain footprint; CV stays off-chain in larv.ai.
+- **Media** — MediaMTX in docker-compose. RTMP in from OBS, HLS/WebRTC out to browsers.
+
+## Fork it
+
+The whole thing is designed to run with one command after filling in `.env`.
+
+```bash
+git clone https://github.com/clawdbotatg/clawd-conclave.git my-conclave
+cd my-conclave
+cp .env.example .env
+cp packages/nextjs/.env.example packages/nextjs/.env.development
+# edit .env to set your token address + CV service (defaults: $CLAWD + larv.ai)
 yarn install
+docker compose up -d     # starts Postgres + MediaMTX + relay
+yarn start               # starts the Next.js frontend on :3000
 ```
 
-2. Run a local network in the first terminal:
+To run the conclave for **your own ERC-20**, set these in `.env.development` and redeploy:
 
-```
-yarn chain
-```
-
-This command starts a local Ethereum network using Foundry. The network runs on your local machine and can be used for testing and development. You can customize the network configuration in `packages/foundry/foundry.toml`.
-
-3. On a second terminal, deploy the test contract:
-
-```
-yarn deploy
+```env
+NEXT_PUBLIC_TOKEN_ADDRESS=0xYourTokenAddress
+NEXT_PUBLIC_TOKEN_SYMBOL=YOURTOKEN
+NEXT_PUBLIC_TOKEN_CHAIN_ID=1
+NEXT_PUBLIC_CV_API_BASE_URL=https://your-cv-service.example/api/cv
 ```
 
-This command deploys a test smart contract to the local network. The contract is located in `packages/foundry/contracts` and can be modified to suit your needs. The `yarn deploy` command uses the deploy script located in `packages/foundry/script` to deploy the contract to the network. You can also customize the deploy script.
+## Deploy paths
 
-4. On a third terminal, start your NextJS app:
+**Vercel (primary)**
 
+```bash
+yarn vercel:yolo --prod
 ```
-yarn start
+
+**IPFS / ENS (censorship-resistant fallback)**
+
+```bash
+yarn ipfs
+# → publishes to BGIPFS and prints the CID
+# → update your ENS contenthash to point at that CID
+# → viewers can now reach the conclave via yourname.eth.limo even if the
+#   Vercel deployment goes down
 ```
 
-Visit your app on: `http://localhost:3000`. You can interact with your smart contract using the `Debug Contracts` page. You can tweak the app config in `packages/nextjs/scaffold.config.ts`.
+**Relay** deploys independently — Docker image via `packages/relay/Dockerfile`, or Fly.io / Railway / a $5 VPS. Vercel serverless works too if you prefer.
 
-Run smart contract test with `yarn foundry:test`
+## Current status
 
-- Edit your smart contracts in `packages/foundry/contracts`
-- Edit your frontend homepage at `packages/nextjs/app/page.tsx`. For guidance on [routing](https://nextjs.org/docs/app/building-your-application/routing/defining-routes) and configuring [pages/layouts](https://nextjs.org/docs/app/building-your-application/routing/pages-and-layouts) checkout the Next.js documentation.
-- Edit your deployment scripts in `packages/foundry/script`
+Phase 0 is in. Landing page shows wallet + `$CLAWD` on-chain balance + CV balance. Relay serves `/health` and `/cv-balance/:address`. Docker-compose spins up Postgres, MediaMTX, and the relay.
 
+See [`PLAN.md`](./PLAN.md) for the full phase breakdown.
 
-## Documentation
+## Built on
 
-Visit our [docs](https://docs.scaffoldeth.io) to learn how to start building with Scaffold-ETH 2.
+Scaffold-ETH 2 — [docs.scaffoldeth.io](https://docs.scaffoldeth.io). `AGENTS.md` in this repo is the source of truth for SE-2 conventions.
 
-To know more about its features, check out our [website](https://scaffoldeth.io).
+## License
 
-## Contributing to Scaffold-ETH 2
-
-We welcome contributions to Scaffold-ETH 2!
-
-Please see [CONTRIBUTING.MD](https://github.com/scaffold-eth/scaffold-eth-2/blob/main/CONTRIBUTING.md) for more information and guidelines for contributing to Scaffold-ETH 2.
+MIT — see [`LICENCE`](./LICENCE).

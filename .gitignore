@@ -21,3 +21,13 @@ node_modules
 
 # cli
 dist
+
+# docker volumes (postgres data)
+data/
+
+# local env
+.env
+.env.local
+.env.development
+.env.production
+packages/relay/.env

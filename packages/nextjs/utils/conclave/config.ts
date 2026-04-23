@@ -1,0 +1,46 @@
+/**
+ * Fork-configurable conclave settings. All values have $CLAWD / larv.ai
+ * defaults so the default build works out of the box, but anyone forking
+ * can swap the token and CV backend by setting these env vars.
+ *
+ * Static exports (IPFS/ENS) bake these at build time — forkers produce
+ * their own build and pin their own IPFS artifact.
+ */
+
+export const CONCLAVE_TOKEN_ADDRESS =
+  (process.env.NEXT_PUBLIC_TOKEN_ADDRESS as `0x${string}`) ?? "0x9f86dB9fc6f7c9408e8Fda3Ff8ce4e78ac7a6b07";
+
+export const CONCLAVE_TOKEN_SYMBOL = process.env.NEXT_PUBLIC_TOKEN_SYMBOL ?? "CLAWD";
+
+export const CONCLAVE_TOKEN_CHAIN_ID = Number(process.env.NEXT_PUBLIC_TOKEN_CHAIN_ID ?? 1);
+
+// CV service — defaults to larv.ai. Fork can point at a self-hosted CV service.
+export const CONCLAVE_CV_API_BASE_URL = process.env.NEXT_PUBLIC_CV_API_BASE_URL ?? "https://larv.ai/api/cv";
+
+// Relay server — used for authenticated endpoints (SIWE, /chat, /engagement)
+// and as an optional CORS-friendly proxy for CV balance reads.
+export const CONCLAVE_RELAY_URL = process.env.NEXT_PUBLIC_RELAY_URL ?? "";
+
+export const erc20BalanceAbi = [
+  {
+    type: "function",
+    name: "balanceOf",
+    stateMutability: "view",
+    inputs: [{ name: "owner", type: "address" }],
+    outputs: [{ type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "decimals",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "uint8" }],
+  },
+  {
+    type: "function",
+    name: "symbol",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "string" }],
+  },
+] as const;
