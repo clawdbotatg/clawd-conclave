@@ -1,25 +1,27 @@
 import "@rainbow-me/rainbowkit/styles.css";
 import "@scaffold-ui/components/styles.css";
-import { ScaffoldEthAppWithProviders } from "~~/components/ScaffoldEthAppWithProviders";
 import { ThemeProvider } from "~~/components/ThemeProvider";
 import "~~/styles/globals.css";
 import { getMetadata } from "~~/utils/scaffold-eth/getMetadata";
 
 export const metadata = getMetadata({
-  title: "Scaffold-ETH 2 App",
-  description: "Built with 🏗 Scaffold-ETH 2",
+  title: "CLAWD Conclave",
+  description: "Token-gated live conclave for $CLAWD stakers",
 });
 
-const ScaffoldEthApp = ({ children }: { children: React.ReactNode }) => {
+/**
+ * Root layout intentionally has NO wallet / Header / Footer / Toaster. Those
+ * live in the `(chrome)` route group so the `/overlay` route (rendered by
+ * OBS as a transparent browser source) doesn't inherit them.
+ */
+const RootLayout = ({ children }: { children: React.ReactNode }) => {
   return (
-    <html suppressHydrationWarning className={``}>
+    <html suppressHydrationWarning>
       <body>
-        <ThemeProvider enableSystem>
-          <ScaffoldEthAppWithProviders>{children}</ScaffoldEthAppWithProviders>
-        </ThemeProvider>
+        <ThemeProvider enableSystem>{children}</ThemeProvider>
       </body>
     </html>
   );
 };
 
-export default ScaffoldEthApp;
+export default RootLayout;
