@@ -10,11 +10,16 @@ type Status = "idle" | "loading" | "playing" | "offline" | "error";
  * (which handles LL-HLS fine) and falls back to hls.js everywhere else.
  * Polls the playlist while offline so the player flips to "playing" as soon
  * as OBS starts pushing.
+ *
+ * Audio: we start muted because every major browser blocks autoplay with
+ * audio on a tab that hasn't had user interaction yet. The viewer sees a
+ * "click to unmute" button once playback begins.
  */
 export function HlsPlayer({ src, autoplay = true }: { src: string; autoplay?: boolean }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [status, setStatus] = useState<Status>("idle");
   const [message, setMessage] = useState<string>("");
+  const [muted, setMuted] = useState(true);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -101,9 +106,24 @@ export function HlsPlayer({ src, autoplay = true }: { src: string; autoplay?: bo
     };
   }, [src, autoplay]);
 
+  const handleUnmute = () => {
+    const video = videoRef.current;
+    if (!video) return;
+    video.muted = false;
+    if (video.paused) video.play().catch(() => {});
+    setMuted(false);
+  };
+
   return (
     <div className="relative w-full h-full bg-black rounded-xl overflow-hidden flex items-center justify-center">
-      <video ref={videoRef} className="w-full h-full" playsInline muted controls={status === "playing"} />
+      <video
+        ref={videoRef}
+        className="w-full h-full"
+        playsInline
+        muted={muted}
+        controls={status === "playing"}
+        onVolumeChange={e => setMuted((e.target as HTMLVideoElement).muted)}
+      />
       {status !== "playing" && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div className="text-center text-base-content/50">
@@ -120,6 +140,16 @@ export function HlsPlayer({ src, autoplay = true }: { src: string; autoplay?: bo
           <span className="inline-block w-2 h-2 rounded-full bg-white" />
           LIVE
         </div>
+      )}
+      {status === "playing" && muted && (
+        <button
+          type="button"
+          onClick={handleUnmute}
+          className="absolute inset-0 flex items-center justify-center bg-black/40 hover:bg-black/50 transition"
+          aria-label="Unmute stream"
+        >
+          <span className="btn btn-primary btn-lg gap-2 pointer-events-none">🔇 Click to unmute</span>
+        </button>
       )}
     </div>
   );
