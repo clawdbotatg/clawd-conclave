@@ -58,11 +58,12 @@ webrtcAdditionalHosts:
   - $WEBRTC_PUBLIC_HOST
 
 # Per-path config for the canonical conclave stream. runOnReady fires when
-# OBS successfully publishes; yt-fanout.sh spawns an ffmpeg restream to
-# YouTube when YOUTUBE_STREAM_KEY is set. runOnReadyRestart lets MediaMTX
-# respawn ffmpeg if it crashes while the stream is still live.
+# OBS successfully publishes; stream-fanout.sh spawns (a) an Opus transcode
+# to live/conclave-rtc for WebRTC viewers, and (b) a YouTube restream if
+# YOUTUBE_STREAM_KEY is set. runOnReadyRestart respawns the whole pipeline
+# if either child crashes.
 paths:
   live/conclave:
-    runOnReady: bash /home/ubuntu/clawd-conclave/infra/yt-fanout.sh
+    runOnReady: bash /home/ubuntu/clawd-conclave/infra/stream-fanout.sh
     runOnReadyRestart: yes
   all_others:

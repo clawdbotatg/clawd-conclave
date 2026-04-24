@@ -29,8 +29,13 @@ export const CONCLAVE_MEDIA_HLS_URL =
 
 // WHEP (WebRTC-HTTP Egress Protocol) endpoint for sub-second playback.
 // Player tries this first, falls back to HLS on failure.
+//
+// Note the path is `live/conclave-rtc`, not `live/conclave`. OBS ingests
+// AAC audio on `live/conclave`, which WebRTC can't carry; a server-side
+// ffmpeg transcodes to Opus and republishes on `live/conclave-rtc`. HLS
+// keeps pulling from the original so it gets untouched AAC.
 export const CONCLAVE_MEDIA_WHEP_URL =
-  process.env.NEXT_PUBLIC_MEDIA_WHEP_URL ?? "http://localhost:8889/live/conclave/whep";
+  process.env.NEXT_PUBLIC_MEDIA_WHEP_URL ?? "http://localhost:8889/live/conclave-rtc/whep";
 
 export const erc20BalanceAbi = [
   {
