@@ -14,6 +14,10 @@ type Transport = "webrtc" | "hls" | "none";
  * Audio: starts muted because every major browser blocks autoplay with
  * audio on a tab that hasn't had user interaction. We show a "click to
  * unmute" button once playback begins.
+ *
+ * Recovery: when the stream drops (WHEP disconnect or HLS fatal error),
+ * the player automatically reconnects — trying WHEP first so low latency
+ * is restored without a page reload.
  */
 export function Player({ whepUrl, hlsUrl, autoplay = true }: { whepUrl: string; hlsUrl: string; autoplay?: boolean }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -23,9 +27,8 @@ export function Player({ whepUrl, hlsUrl, autoplay = true }: { whepUrl: string; 
   const [message, setMessage] = useState("");
   const [muted, setMuted] = useState(true);
 
-  // Keep a ref of the latest status so we can read it inside the
-  // setup effect without having to add status to its dependency
-  // array (that would tear down + recreate WHEP on every state tick).
+  // Keep statusRef in sync so the effect can read current status without
+  // adding it to the dependency array (which would teardown/recreate WHEP).
   useEffect(() => {
     statusRef.current = status;
   }, [status]);
@@ -38,23 +41,69 @@ export function Player({ whepUrl, hlsUrl, autoplay = true }: { whepUrl: string; 
     let sessionUrl: string | null = null;
     let hls: Hls | null = null;
     let retryTimeout: ReturnType<typeof setTimeout> | null = null;
+    let whepTimeout: ReturnType<typeof setTimeout> | null = null;
     let cancelled = false;
-    let whepFailed = false;
+
+    const clearRetry = () => {
+      if (retryTimeout) {
+        clearTimeout(retryTimeout);
+        retryTimeout = null;
+      }
+    };
+
+    const teardownWhep = () => {
+      if (whepTimeout) {
+        clearTimeout(whepTimeout);
+        whepTimeout = null;
+      }
+      if (pc) {
+        try {
+          pc.close();
+        } catch {
+          // ignore
+        }
+        pc = null;
+      }
+      // CRITICAL: clear srcObject so HLS.js (which uses video.src) can take
+      // over the video element. Without this, the dead MediaStream stays
+      // attached and HLS never renders.
+      video.srcObject = null;
+      if (sessionUrl) {
+        fetch(sessionUrl, { method: "DELETE" }).catch(() => {});
+        sessionUrl = null;
+      }
+    };
+
+    const teardownHls = () => {
+      hls?.destroy();
+      hls = null;
+    };
+
+    // After stream drops, wait then retry WHEP so low latency is restored
+    // automatically — no page reload needed.
+    const scheduleReconnect = (delay = 3000) => {
+      clearRetry();
+      retryTimeout = setTimeout(() => {
+        if (!cancelled) startWhep();
+      }, delay);
+    };
 
     const attachHls = () => {
       setTransport("hls");
       setStatus("connecting");
-      const nativeSupport = video.canPlayType("application/vnd.apple.mpegurl") !== "";
-      if (nativeSupport) {
-        video.src = hlsUrl;
-        if (autoplay) video.play().catch(() => {});
-        return;
-      }
+
       if (!Hls.isSupported()) {
+        // Safari native HLS
+        if (video.canPlayType("application/vnd.apple.mpegurl") !== "") {
+          video.src = hlsUrl;
+          if (autoplay) video.play().catch(() => {});
+          return;
+        }
         setStatus("error");
         setMessage("This browser can't play HLS.");
         return;
       }
+
       hls = new Hls({ lowLatencyMode: true, backBufferLength: 5, liveSyncDurationCount: 2 });
       hls.loadSource(hlsUrl);
       hls.attachMedia(video);
@@ -64,14 +113,13 @@ export function Player({ whepUrl, hlsUrl, autoplay = true }: { whepUrl: string; 
       hls.on(Hls.Events.ERROR, (_e, data) => {
         if (!data.fatal) return;
         setStatus("offline");
-        hls?.destroy();
-        hls = null;
-        retryTimeout = setTimeout(pollHls, 3000);
+        teardownHls();
+        // Stream dropped while on HLS — reconnect loop tries WHEP first
+        scheduleReconnect(3000);
       });
     };
 
     const pollHls = async () => {
-      // HEAD isn't implemented by all HLS servers; use GET and abort fast.
       try {
         const res = await fetch(hlsUrl, { cache: "no-store" });
         if (cancelled) return;
@@ -89,13 +137,7 @@ export function Player({ whepUrl, hlsUrl, autoplay = true }: { whepUrl: string; 
       attachHls();
     };
 
-    /**
-     * WHEP handshake. POSTs the SDP offer, expects a 201 with SDP answer
-     * and a Location header pointing at the session resource (used for
-     * DELETE on unmount). If anything fails — bad status, ICE failure,
-     * timeout — we fall through to HLS.
-     */
-    const tryWhep = async () => {
+    const startWhep = () => {
       setTransport("webrtc");
       setStatus("connecting");
 
@@ -110,72 +152,71 @@ export function Player({ whepUrl, hlsUrl, autoplay = true }: { whepUrl: string; 
 
       pc.onconnectionstatechange = () => {
         if (!pc) return;
-        if (pc.connectionState === "failed" || pc.connectionState === "disconnected") {
-          if (!whepFailed) {
-            whepFailed = true;
-            teardownWhep();
-            pollHls();
-          }
+        const state = pc.connectionState;
+        if (state === "failed" || state === "disconnected") {
+          teardownWhep();
+          scheduleReconnect(2000);
         }
       };
 
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-      // Wait for ICE gathering so the SDP we POST includes all candidates —
-      // the WHEP spec supports trickle but MediaMTX plays nicer with
-      // non-trickle (everything in the initial offer).
-      await new Promise<void>(resolve => {
-        if (!pc) return resolve();
-        if (pc.iceGatheringState === "complete") return resolve();
-        const t = setTimeout(resolve, 4000);
-        pc.addEventListener("icegatheringstatechange", () => {
-          if (pc && pc.iceGatheringState === "complete") {
-            clearTimeout(t);
-            resolve();
-          }
-        });
-      });
-      if (cancelled || !pc || !pc.localDescription) return;
-
-      const res = await fetch(whepUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/sdp" },
-        body: pc.localDescription.sdp,
-      });
-      if (!res.ok) {
-        // MediaMTX returns 404 when the stream isn't live — drop to HLS
-        // which will poll for us.
-        whepFailed = true;
-        teardownWhep();
-        if (res.status === 404) {
-          setStatus("offline");
-          retryTimeout = setTimeout(pollHls, 3000);
-        } else {
+      // Hard timeout — if not playing within 12s, fall back to HLS polling.
+      whepTimeout = setTimeout(() => {
+        if (statusRef.current !== "playing") {
+          teardownWhep();
           pollHls();
         }
-        return;
-      }
-      sessionUrl = res.headers.get("Location");
-      const answer = await res.text();
-      if (cancelled || !pc) return;
-      await pc.setRemoteDescription({ type: "answer", sdp: answer });
-    };
+      }, 12000);
 
-    const teardownWhep = () => {
-      if (pc) {
+      (async () => {
         try {
-          pc.close();
-        } catch {
-          // ignore
+          const offer = await pc!.createOffer();
+          await pc!.setLocalDescription(offer);
+
+          // Wait for ICE gathering so the SDP we POST includes all candidates.
+          // MediaMTX plays nicer with non-trickle (everything in the initial offer).
+          await new Promise<void>(resolve => {
+            if (!pc) return resolve();
+            if (pc.iceGatheringState === "complete") return resolve();
+            const t = setTimeout(resolve, 4000);
+            pc.addEventListener("icegatheringstatechange", () => {
+              if (pc && pc.iceGatheringState === "complete") {
+                clearTimeout(t);
+                resolve();
+              }
+            });
+          });
+
+          if (cancelled || !pc || !pc.localDescription) return;
+
+          const res = await fetch(whepUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/sdp" },
+            body: pc.localDescription.sdp,
+          });
+
+          if (!res.ok) {
+            teardownWhep();
+            if (res.status === 404) {
+              // Stream not live yet — poll HLS until it comes up
+              setStatus("offline");
+              retryTimeout = setTimeout(pollHls, 3000);
+            } else {
+              pollHls();
+            }
+            return;
+          }
+
+          sessionUrl = res.headers.get("Location");
+          const answer = await res.text();
+          if (cancelled || !pc) return;
+          await pc.setRemoteDescription({ type: "answer", sdp: answer });
+        } catch (err) {
+          if (cancelled) return;
+          console.warn("[Player] WHEP failed:", err);
+          teardownWhep();
+          pollHls();
         }
-        pc = null;
-      }
-      // Best-effort WHEP session cleanup — if it fails, MediaMTX will
-      // expire the session on its own.
-      if (sessionUrl) {
-        fetch(sessionUrl, { method: "DELETE" }).catch(() => {});
-        sessionUrl = null;
-      }
+      })();
     };
 
     const onPlaying = () => setStatus("playing");
@@ -185,31 +226,15 @@ export function Player({ whepUrl, hlsUrl, autoplay = true }: { whepUrl: string; 
     video.addEventListener("playing", onPlaying);
     video.addEventListener("waiting", onWaiting);
 
-    // Hard timeout on the whole WHEP attempt — if we don't see `playing`
-    // within 12s, assume it's not happening and drop to HLS.
-    const whepTimeout = setTimeout(() => {
-      if (!whepFailed && statusRef.current !== "playing") {
-        whepFailed = true;
-        teardownWhep();
-        pollHls();
-      }
-    }, 12000);
-
-    tryWhep().catch(err => {
-      console.warn("[Player] WHEP failed:", err);
-      whepFailed = true;
-      teardownWhep();
-      pollHls();
-    });
+    startWhep();
 
     return () => {
       cancelled = true;
-      clearTimeout(whepTimeout);
-      if (retryTimeout) clearTimeout(retryTimeout);
+      clearRetry();
       video.removeEventListener("playing", onPlaying);
       video.removeEventListener("waiting", onWaiting);
       teardownWhep();
-      hls?.destroy();
+      teardownHls();
       video.removeAttribute("src");
       video.srcObject = null;
       video.load();
