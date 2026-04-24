@@ -108,3 +108,45 @@ export async function fetchAdminStatus(token: string): Promise<AdminStatus | nul
     return null;
   }
 }
+
+export type FanoutDestination = {
+  id: string;
+  name: string;
+  configured: boolean;
+  running: boolean;
+  startedAt?: string;
+};
+
+export async function fetchFanouts(token: string): Promise<FanoutDestination[]> {
+  if (!CONCLAVE_RELAY_URL || !token) return [];
+  try {
+    const res = await fetch(`${CONCLAVE_RELAY_URL}/admin/fanouts`, {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    });
+    if (!res.ok) return [];
+    const data = (await res.json()) as { fanouts?: FanoutDestination[] };
+    return data.fanouts ?? [];
+  } catch {
+    return [];
+  }
+}
+
+export async function toggleFanout(
+  token: string,
+  id: string,
+  action: "start" | "stop",
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!CONCLAVE_RELAY_URL) return { ok: false, error: "Relay URL not set" };
+  try {
+    const res = await fetch(`${CONCLAVE_RELAY_URL}/admin/fanouts/${id}/${action}`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = (await res.json().catch(() => ({}))) as { error?: string };
+    if (!res.ok) return { ok: false, error: data.error ?? `HTTP ${res.status}` };
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
+  }
+}

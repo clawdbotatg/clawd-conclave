@@ -5,7 +5,7 @@ import { Address } from "@scaffold-ui/components";
 import type { NextPage } from "next";
 import toast from "react-hot-toast";
 import { useAdminAuth } from "~~/hooks/conclave/useAdminAuth";
-import { AdminStatus, fetchAdminStatus } from "~~/utils/conclave/admin";
+import { AdminStatus, FanoutDestination, fetchAdminStatus, fetchFanouts, toggleFanout } from "~~/utils/conclave/admin";
 
 const formatBytes = (n: number): string => {
   if (n < 1024) return `${n} B`;
@@ -17,16 +17,22 @@ const formatBytes = (n: number): string => {
 const Admin: NextPage = () => {
   const { address, isAdmin, isSignedIn, token, loading, isSigning, error, signIn, signOut } = useAdminAuth();
   const [status, setStatus] = useState<AdminStatus | null>(null);
+  const [fanouts, setFanouts] = useState<FanoutDestination[]>([]);
+  const [busyFanout, setBusyFanout] = useState<string | null>(null);
 
   useEffect(() => {
     if (!token) {
       setStatus(null);
+      setFanouts([]);
       return;
     }
     let cancelled = false;
     const load = async () => {
-      const s = await fetchAdminStatus(token);
-      if (!cancelled) setStatus(s);
+      const [s, f] = await Promise.all([fetchAdminStatus(token), fetchFanouts(token)]);
+      if (!cancelled) {
+        setStatus(s);
+        setFanouts(f);
+      }
     };
     load();
     const id = setInterval(load, 5000);
@@ -35,6 +41,21 @@ const Admin: NextPage = () => {
       clearInterval(id);
     };
   }, [token]);
+
+  const handleFanoutToggle = async (id: string, action: "start" | "stop") => {
+    if (!token) return;
+    setBusyFanout(id);
+    const result = await toggleFanout(token, id, action);
+    if (!result.ok) {
+      toast.error(result.error);
+    } else {
+      toast.success(action === "start" ? "Fanout started" : "Fanout stopped");
+      // Optimistically refresh
+      const f = await fetchFanouts(token);
+      setFanouts(f);
+    }
+    setBusyFanout(null);
+  };
 
   const copy = async (label: string, text: string) => {
     try {
@@ -204,6 +225,66 @@ const Admin: NextPage = () => {
                   <div className="text-xs text-base-content/60 mt-1">{status.obs.note}</div>
                 </div>
               </div>
+            </div>
+          </div>
+
+          {/* Restream destinations */}
+          <div className="card bg-base-100 shadow md:col-span-2">
+            <div className="card-body">
+              <div className="flex items-center justify-between">
+                <h2 className="card-title">Restream destinations</h2>
+                <div className="text-xs text-base-content/50">
+                  Requires OBS publishing · YouTube Studio still needs a Go Live click unless auto-start is on
+                </div>
+              </div>
+              {fanouts.length === 0 ? (
+                <div className="text-sm text-base-content/50 mt-2">No destinations configured.</div>
+              ) : (
+                <div className="space-y-2 mt-2">
+                  {fanouts.map(f => (
+                    <div
+                      key={f.id}
+                      className="flex items-center justify-between border border-base-300 rounded-lg px-3 py-2"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div
+                          className={`badge ${f.running ? "badge-error animate-pulse" : f.configured ? "badge-neutral" : "badge-warning"}`}
+                        >
+                          {f.running ? "LIVE" : f.configured ? "off" : "unconfigured"}
+                        </div>
+                        <div>
+                          <div className="font-bold text-sm">{f.name}</div>
+                          {f.startedAt && (
+                            <div className="text-xs text-base-content/50">
+                              started {new Date(f.startedAt).toLocaleTimeString()}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      {f.configured && !f.running && (
+                        <button
+                          className="btn btn-primary btn-sm"
+                          disabled={busyFanout === f.id || !status.publishing.ready}
+                          onClick={() => handleFanoutToggle(f.id, "start")}
+                          title={status.publishing.ready ? "Start fanout" : "OBS must be publishing first"}
+                        >
+                          {busyFanout === f.id ? "…" : "Start fanout"}
+                        </button>
+                      )}
+                      {f.running && (
+                        <button
+                          className="btn btn-error btn-sm btn-outline"
+                          disabled={busyFanout === f.id}
+                          onClick={() => handleFanoutToggle(f.id, "stop")}
+                        >
+                          {busyFanout === f.id ? "…" : "Stop"}
+                        </button>
+                      )}
+                      {!f.configured && <div className="text-xs text-base-content/50">missing key in .env.stream</div>}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 

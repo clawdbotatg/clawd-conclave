@@ -5,6 +5,7 @@ import { extractBearer, getAdminBySession, isAdminAddress, issueAdminNonce, revo
 import { CV_SPEND_MESSAGE, MAX_MESSAGE_LENGTH, config } from "./config.js";
 import { spendCv } from "./cv.js";
 import { db } from "./db.js";
+import { isKnownFanoutId, listFanouts, shutdownAllFanouts, startFanout, stopFanout } from "./fanout.js";
 import { checkRateLimit, releaseRateLimit } from "./rateLimit.js";
 import { messages, nonces } from "./schema.js";
 import { addSocket, broadcast, connectedCount } from "./ws.js";
@@ -283,6 +284,37 @@ app.get<{ Querystring: { address?: string } }>("/auth/is-admin", async req => {
   if (!/^0x[a-fA-F0-9]{40}$/.test(address)) return { isAdmin: false };
   return { isAdmin: isAdminAddress(address) };
 });
+
+// --- /admin/fanouts (restream destinations) --------------------------------
+
+app.get("/admin/fanouts", async (req, reply) => {
+  const address = await requireAdmin(req, reply);
+  if (!address) return;
+  return { fanouts: listFanouts() };
+});
+
+app.post<{ Params: { id: string } }>("/admin/fanouts/:id/start", async (req, reply) => {
+  const address = await requireAdmin(req, reply);
+  if (!address) return;
+  if (!isKnownFanoutId(req.params.id)) return reply.code(404).send({ error: "Unknown destination" });
+  const result = startFanout(req.params.id, line => app.log.info(line));
+  if (!result.ok) return reply.code(400).send({ error: result.error });
+  return { ok: true };
+});
+
+app.post<{ Params: { id: string } }>("/admin/fanouts/:id/stop", async (req, reply) => {
+  const address = await requireAdmin(req, reply);
+  if (!address) return;
+  if (!isKnownFanoutId(req.params.id)) return reply.code(404).send({ error: "Unknown destination" });
+  const result = stopFanout(req.params.id);
+  if (!result.ok) return reply.code(400).send({ error: result.error });
+  return { ok: true };
+});
+
+// Cleanly terminate ffmpeg children on relay shutdown so YouTube sees a
+// proper "stream ended" rather than a drop.
+process.on("SIGTERM", () => shutdownAllFanouts());
+process.on("SIGINT", () => shutdownAllFanouts());
 
 // --- Boot -------------------------------------------------------------------
 
