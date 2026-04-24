@@ -47,8 +47,12 @@ hlsAllowOrigins: ["*"]
 webrtc: yes
 webrtcAddress: :8889
 
-# Pathless wildcard — any RTMP push creates a path. In Phase 2 we'll switch
-# this to per-session authenticated paths so only the conclave admin can
-# start a stream.
+# Per-path config for the canonical conclave stream. runOnReady fires when
+# OBS successfully publishes; yt-fanout.sh spawns an ffmpeg restream to
+# YouTube when YOUTUBE_STREAM_KEY is set. runOnReadyRestart lets MediaMTX
+# respawn ffmpeg if it crashes while the stream is still live.
 paths:
+  live/conclave:
+    runOnReady: bash /home/ubuntu/clawd-conclave/infra/yt-fanout.sh
+    runOnReadyRestart: yes
   all_others:
