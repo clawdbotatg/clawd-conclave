@@ -32,3 +32,29 @@ export const nonces = sqliteTable(
   },
   table => [uniqueIndex("nonces_wallet_nonce_idx").on(table.wallet, table.nonce)],
 );
+
+/**
+ * SIWE challenge nonces for the admin login flow. Issued by /auth/siwe/nonce,
+ * consumed by /auth/siwe/verify, expire after 10 min if unused.
+ */
+export const adminNonces = sqliteTable("admin_nonces", {
+  nonce: text().primaryKey(),
+  address: text().notNull(),
+  createdAt: integer({ mode: "timestamp_ms" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+/**
+ * Admin session tokens issued after a successful SIWE verify. Clients
+ * store the token in localStorage and send it as `Authorization: Bearer
+ * <token>` on each admin API call.
+ */
+export const adminSessions = sqliteTable("admin_sessions", {
+  token: text().primaryKey(),
+  address: text().notNull(),
+  expiresAt: integer({ mode: "timestamp_ms" }).notNull(),
+  createdAt: integer({ mode: "timestamp_ms" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});

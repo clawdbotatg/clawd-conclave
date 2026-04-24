@@ -33,6 +33,26 @@ export const config = {
 
   databaseUrl: process.env.DATABASE_URL,
 
+  // Admin (SIWE) config
+  // Comma-separated list of addresses allowed to sign in to /admin.
+  adminAddresses: optional("ADMIN_ADDRESSES", "")
+    .split(",")
+    .map(s => s.trim().toLowerCase())
+    .filter(Boolean),
+  // Frontend domain where the user signs the SIWE message. SIWE message's
+  // `domain` field must equal this — prevents an attacker from replaying
+  // a signature obtained on a different site.
+  adminDomain: optional("ADMIN_DOMAIN", "localhost:3000"),
+  // How long an admin session token stays valid, in seconds.
+  adminSessionTTLSeconds: Number(optional("ADMIN_SESSION_TTL_SECONDS", String(24 * 60 * 60))),
+
+  // Alchemy key for on-chain ERC-1271 signature verification (smart-wallet
+  // admin sign-in). Optional — EOA sign-in doesn't need it.
+  alchemyApiKey: process.env.NEXT_PUBLIC_ALCHEMY_API_KEY ?? process.env.ALCHEMY_API_KEY ?? "",
+
+  // MediaMTX admin API URL — used by /admin/status to fetch paths, viewer counts, etc.
+  mediamtxApiUrl: optional("MEDIAMTX_API_URL", "http://127.0.0.1:9997"),
+
   getRequiredCvSpendSecret: () => required("CV_SPEND_SECRET"),
   getRequiredDatabaseUrl: () => required("DATABASE_URL"),
 } as const;

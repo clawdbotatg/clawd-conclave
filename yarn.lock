@@ -4311,6 +4311,7 @@ __metadata:
     fastify: "npm:^5.2.1"
     tsx: "npm:^4.20.0"
     typescript: "npm:~5.8.2"
+    viem: "npm:2.39.0"
   languageName: unknown
   linkType: soft
 

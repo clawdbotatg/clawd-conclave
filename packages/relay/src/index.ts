@@ -1,6 +1,7 @@
 import cors from "@fastify/cors";
 import websocket from "@fastify/websocket";
 import Fastify from "fastify";
+import { extractBearer, getAdminBySession, isAdminAddress, issueAdminNonce, revokeSession, verifyAdminSiwe } from "./auth.js";
 import { CV_SPEND_MESSAGE, MAX_MESSAGE_LENGTH, config } from "./config.js";
 import { spendCv } from "./cv.js";
 import { db } from "./db.js";
@@ -163,6 +164,124 @@ app.register(async function wsRoutes(fastify) {
     addSocket(socket);
     socket.send(JSON.stringify({ type: "hello", phase: 1 }));
   });
+});
+
+// --- SIWE admin auth --------------------------------------------------------
+
+app.get<{ Querystring: { address?: string } }>("/auth/siwe/nonce", async (req, reply) => {
+  const address = req.query.address ?? "";
+  if (!/^0x[a-fA-F0-9]{40}$/.test(address)) {
+    return reply.code(400).send({ error: "Invalid address" });
+  }
+  // Don't reveal whether an address is admin via nonce issue — issue for
+  // anyone, reject at /verify. Keeps admin-address list from being probed.
+  const nonce = await issueAdminNonce(address);
+  return { nonce };
+});
+
+type SiweVerifyBody = { message?: unknown; signature?: unknown };
+
+app.post<{ Body: SiweVerifyBody }>("/auth/siwe/verify", async (req, reply) => {
+  const body = (req.body ?? {}) as SiweVerifyBody;
+  const message = typeof body.message === "string" ? body.message : "";
+  const signature = typeof body.signature === "string" ? body.signature : "";
+  if (!message || !/^0x[0-9a-fA-F]+$/.test(signature)) {
+    return reply.code(400).send({ error: "Missing message or signature" });
+  }
+  const result = await verifyAdminSiwe(message, signature as `0x${string}`);
+  if (!result.ok) return reply.code(401).send({ error: result.error });
+  return { token: result.token, address: result.address, expiresIn: config.adminSessionTTLSeconds };
+});
+
+app.post("/auth/logout", async req => {
+  const token = extractBearer(req.headers.authorization);
+  if (token) await revokeSession(token);
+  return { ok: true };
+});
+
+/**
+ * Middleware-ish: returns the admin address for the request, or sends 401
+ * and returns null. Callers must check the return value.
+ */
+async function requireAdmin(req: { headers: { authorization?: string } }, reply: { code: (c: number) => { send: (body: unknown) => unknown } }): Promise<string | null> {
+  const token = extractBearer(req.headers.authorization);
+  const address = await getAdminBySession(token);
+  if (!address) {
+    reply.code(401).send({ error: "Unauthorized" });
+    return null;
+  }
+  return address;
+}
+
+// --- /admin/status ----------------------------------------------------------
+
+type MediamtxPath = {
+  name: string;
+  ready: boolean;
+  tracks: string[];
+  readers: Array<{ type: string }>;
+  inboundBytes: number;
+  source: { type: string } | null;
+};
+type MediamtxPathList = { items: MediamtxPath[] };
+type WebrtcSession = { state: string; bytesSent: number };
+type WebrtcSessionList = { items: WebrtcSession[] };
+
+app.get("/admin/status", async (req, reply) => {
+  const address = await requireAdmin(req, reply);
+  if (!address) return;
+
+  // Fetch both in parallel; tolerate MediaMTX being unreachable without
+  // failing the whole status call.
+  const [pathsRes, webrtcRes] = await Promise.allSettled([
+    fetch(`${config.mediamtxApiUrl}/v3/paths/list`).then(r => r.json() as Promise<MediamtxPathList>),
+    fetch(`${config.mediamtxApiUrl}/v3/webrtcsessions/list`).then(r => r.json() as Promise<WebrtcSessionList>),
+  ]);
+
+  const paths = pathsRes.status === "fulfilled" ? pathsRes.value.items ?? [] : [];
+  const webrtc = webrtcRes.status === "fulfilled" ? webrtcRes.value.items ?? [] : [];
+
+  // Identify the canonical "live" path and the Opus transcode.
+  const live = paths.find(p => p.name === "live/conclave");
+  const liveRtc = paths.find(p => p.name === "live/conclave-rtc");
+
+  const activeWebrtc = webrtc.filter(s => s.state === "read").length;
+  const webrtcBytes = webrtc.reduce((sum, s) => sum + (s.bytesSent || 0), 0);
+
+  return {
+    admin: address,
+    publishing: {
+      ready: Boolean(live?.ready),
+      tracks: live?.tracks ?? [],
+      inboundBytes: live?.inboundBytes ?? 0,
+      source: live?.source?.type ?? null,
+    },
+    webrtc: {
+      rtcPathReady: Boolean(liveRtc?.ready),
+      rtcTracks: liveRtc?.tracks ?? [],
+      activeViewers: activeWebrtc,
+      bytesSent: webrtcBytes,
+    },
+    chat: {
+      wsClients: connectedCount(),
+      chatCvCost: config.chatCvCost,
+    },
+    obs: {
+      rtmpUrl: "rtmp://conclave.larv.ai:1935/live",
+      streamKeyHint: "conclave?user=<MEDIAMTX_PUBLISH_USER>&pass=<MEDIAMTX_PUBLISH_PASS>",
+      note: "See .env.stream on the server for the real credentials.",
+    },
+    mediamtxReachable: pathsRes.status === "fulfilled",
+  };
+});
+
+// --- Me (who am I) ---
+// Useful for the frontend to decide whether to show admin nav links at all.
+// Public endpoint: just returns whether a given address is admin.
+app.get<{ Querystring: { address?: string } }>("/auth/is-admin", async req => {
+  const address = req.query.address ?? "";
+  if (!/^0x[a-fA-F0-9]{40}$/.test(address)) return { isAdmin: false };
+  return { isAdmin: isAdminAddress(address) };
 });
 
 // --- Boot -------------------------------------------------------------------
