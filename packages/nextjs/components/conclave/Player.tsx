@@ -127,7 +127,7 @@ export function Player({ whepUrl, hlsUrl, autoplay = true }: { whepUrl: string; 
       await new Promise<void>(resolve => {
         if (!pc) return resolve();
         if (pc.iceGatheringState === "complete") return resolve();
-        const t = setTimeout(resolve, 2000);
+        const t = setTimeout(resolve, 4000);
         pc.addEventListener("icegatheringstatechange", () => {
           if (pc && pc.iceGatheringState === "complete") {
             clearTimeout(t);
@@ -186,14 +186,14 @@ export function Player({ whepUrl, hlsUrl, autoplay = true }: { whepUrl: string; 
     video.addEventListener("waiting", onWaiting);
 
     // Hard timeout on the whole WHEP attempt — if we don't see `playing`
-    // within 5s, assume it's not happening and drop to HLS.
+    // within 12s, assume it's not happening and drop to HLS.
     const whepTimeout = setTimeout(() => {
       if (!whepFailed && statusRef.current !== "playing") {
         whepFailed = true;
         teardownWhep();
         pollHls();
       }
-    }, 5000);
+    }, 12000);
 
     tryWhep().catch(err => {
       console.warn("[Player] WHEP failed:", err);
