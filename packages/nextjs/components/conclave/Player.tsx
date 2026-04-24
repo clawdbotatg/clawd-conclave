@@ -18,9 +18,17 @@ type Transport = "webrtc" | "hls" | "none";
 export function Player({ whepUrl, hlsUrl, autoplay = true }: { whepUrl: string; hlsUrl: string; autoplay?: boolean }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [status, setStatus] = useState<Status>("idle");
+  const statusRef = useRef<Status>("idle");
   const [transport, setTransport] = useState<Transport>("none");
   const [message, setMessage] = useState("");
   const [muted, setMuted] = useState(true);
+
+  // Keep a ref of the latest status so we can read it inside the
+  // setup effect without having to add status to its dependency
+  // array (that would tear down + recreate WHEP on every state tick).
+  useEffect(() => {
+    statusRef.current = status;
+  }, [status]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -172,7 +180,7 @@ export function Player({ whepUrl, hlsUrl, autoplay = true }: { whepUrl: string; 
 
     const onPlaying = () => setStatus("playing");
     const onWaiting = () => {
-      if (status !== "offline") setStatus("connecting");
+      if (statusRef.current !== "offline") setStatus("connecting");
     };
     video.addEventListener("playing", onPlaying);
     video.addEventListener("waiting", onWaiting);
@@ -180,7 +188,7 @@ export function Player({ whepUrl, hlsUrl, autoplay = true }: { whepUrl: string; 
     // Hard timeout on the whole WHEP attempt — if we don't see `playing`
     // within 5s, assume it's not happening and drop to HLS.
     const whepTimeout = setTimeout(() => {
-      if (!whepFailed && status !== "playing") {
+      if (!whepFailed && statusRef.current !== "playing") {
         whepFailed = true;
         teardownWhep();
         pollHls();
@@ -206,7 +214,7 @@ export function Player({ whepUrl, hlsUrl, autoplay = true }: { whepUrl: string; 
       video.srcObject = null;
       video.load();
     };
-  }, [whepUrl, hlsUrl, autoplay, status]);
+  }, [whepUrl, hlsUrl, autoplay]);
 
   const handleUnmute = () => {
     const video = videoRef.current;
