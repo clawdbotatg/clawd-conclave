@@ -43,9 +43,19 @@ hlsSegmentDuration: 1s
 hlsPartDuration: 200ms
 hlsAllowOrigins: ["*"]
 
-# WebRTC for ultra-low-latency playback (optional; forkers can turn off)
+# WebRTC for ultra-low-latency playback (~1s end-to-end).
+# Signaling (WHEP protocol) is HTTP on :8889 — fronted by nginx at
+# https://<media host>/live/conclave/whep.
+# Media itself flows UDP directly to the viewer; the EC2 security group
+# MUST open UDP 8189 inbound for this to work, and WEBRTC_PUBLIC_IP must
+# be set in .env.stream so MediaMTX advertises the correct ICE candidate
+# (otherwise viewers try to reach the instance's internal 172.31.x.x IP
+# and NAT-hole-punch fails).
 webrtc: yes
 webrtcAddress: :8889
+webrtcICEUDPMuxAddress: :8189
+webrtcAdditionalHosts:
+  - $WEBRTC_PUBLIC_HOST
 
 # Per-path config for the canonical conclave stream. runOnReady fires when
 # OBS successfully publishes; yt-fanout.sh spawns an ffmpeg restream to

@@ -24,12 +24,17 @@ fi
 
 : "${MEDIAMTX_PUBLISH_USER:?MEDIAMTX_PUBLISH_USER not set (add to $ENV_FILE)}"
 : "${MEDIAMTX_PUBLISH_PASS:?MEDIAMTX_PUBLISH_PASS not set (add to $ENV_FILE)}"
+# WEBRTC_PUBLIC_HOST is the hostname viewers use to reach MediaMTX's WebRTC
+# endpoint (typically the media subdomain). If unset, fall back to 127.0.0.1
+# so local-only dev still works; server deploys must set it.
+: "${WEBRTC_PUBLIC_HOST:=127.0.0.1}"
 
 # sed with `|` delimiter so the hex password never needs escaping. The
 # template uses $VARNAME (no braces) — we match exactly that and replace.
 sed \
   -e "s|\$MEDIAMTX_PUBLISH_USER|${MEDIAMTX_PUBLISH_USER}|g" \
   -e "s|\$MEDIAMTX_PUBLISH_PASS|${MEDIAMTX_PUBLISH_PASS}|g" \
+  -e "s|\$WEBRTC_PUBLIC_HOST|${WEBRTC_PUBLIC_HOST}|g" \
   "$TEMPLATE" > "$OUTPUT"
 
 chmod 600 "$OUTPUT"

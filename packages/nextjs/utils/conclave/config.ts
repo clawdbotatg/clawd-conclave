@@ -27,6 +27,11 @@ export const CONCLAVE_RELAY_URL = process.env.NEXT_PUBLIC_RELAY_URL ?? "";
 export const CONCLAVE_MEDIA_HLS_URL =
   process.env.NEXT_PUBLIC_MEDIA_HLS_URL ?? "http://localhost:8888/live/conclave/index.m3u8";
 
+// WHEP (WebRTC-HTTP Egress Protocol) endpoint for sub-second playback.
+// Player tries this first, falls back to HLS on failure.
+export const CONCLAVE_MEDIA_WHEP_URL =
+  process.env.NEXT_PUBLIC_MEDIA_WHEP_URL ?? "http://localhost:8889/live/conclave/whep";
+
 export const erc20BalanceAbi = [
   {
     type: "function",

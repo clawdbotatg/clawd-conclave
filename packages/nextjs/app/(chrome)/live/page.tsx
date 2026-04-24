@@ -6,7 +6,7 @@ import { Address } from "@scaffold-ui/components";
 import type { NextPage } from "next";
 import toast from "react-hot-toast";
 import { useAccount, useSignMessage } from "wagmi";
-import { HlsPlayer } from "~~/components/conclave/HlsPlayer";
+import { Player } from "~~/components/conclave/Player";
 import { useChatFeed } from "~~/hooks/conclave/useChatFeed";
 import {
   CV_SPEND_MESSAGE,
@@ -19,6 +19,7 @@ import {
 import {
   CONCLAVE_CV_API_BASE_URL,
   CONCLAVE_MEDIA_HLS_URL,
+  CONCLAVE_MEDIA_WHEP_URL,
   CONCLAVE_RELAY_URL,
   CONCLAVE_TOKEN_SYMBOL,
 } from "~~/utils/conclave/config";
@@ -127,10 +128,10 @@ const Live: NextPage = () => {
 
   return (
     <div className="grow flex flex-col lg:flex-row gap-4 p-4 max-w-[1600px] mx-auto w-full">
-      {/* HLS player backed by MediaMTX. Polls the playlist while offline so
-          it flips to playing as soon as OBS starts pushing. */}
+      {/* Tries WHEP (WebRTC, ~1s) first; falls back to LL-HLS (~3s) on
+          failure. MediaMTX serves both backends for the same RTMP ingest. */}
       <div className="flex-1 min-h-[60vh] lg:min-h-0">
-        <HlsPlayer src={CONCLAVE_MEDIA_HLS_URL} />
+        <Player whepUrl={CONCLAVE_MEDIA_WHEP_URL} hlsUrl={CONCLAVE_MEDIA_HLS_URL} />
       </div>
 
       {/* Chat column */}
