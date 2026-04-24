@@ -43,6 +43,11 @@ export function Player({ whepUrl, hlsUrl, autoplay = true }: { whepUrl: string; 
     let retryTimeout: ReturnType<typeof setTimeout> | null = null;
     let whepTimeout: ReturnType<typeof setTimeout> | null = null;
     let cancelled = false;
+    // Consecutive WHEP 404s — live/conclave-rtc takes a few seconds to start
+    // after OBS connects. Retry WHEP up to MAX_WHEP_RETRIES before giving up
+    // and falling back to HLS polling.
+    let whepRetries = 0;
+    const MAX_WHEP_RETRIES = 6;
 
     const clearRetry = () => {
       if (retryTimeout) {
@@ -81,8 +86,9 @@ export function Player({ whepUrl, hlsUrl, autoplay = true }: { whepUrl: string; 
 
     // After stream drops, wait then retry WHEP so low latency is restored
     // automatically — no page reload needed.
-    const scheduleReconnect = (delay = 3000) => {
+    const scheduleReconnect = (delay = 1000) => {
       clearRetry();
+      whepRetries = 0;
       retryTimeout = setTimeout(() => {
         if (!cancelled) startWhep();
       }, delay);
@@ -115,7 +121,7 @@ export function Player({ whepUrl, hlsUrl, autoplay = true }: { whepUrl: string; 
         setStatus("offline");
         teardownHls();
         // Stream dropped while on HLS — reconnect loop tries WHEP first
-        scheduleReconnect(3000);
+        scheduleReconnect(1000);
       });
     };
 
@@ -177,7 +183,7 @@ export function Player({ whepUrl, hlsUrl, autoplay = true }: { whepUrl: string; 
           await new Promise<void>(resolve => {
             if (!pc) return resolve();
             if (pc.iceGatheringState === "complete") return resolve();
-            const t = setTimeout(resolve, 4000);
+            const t = setTimeout(resolve, 2000);
             pc.addEventListener("icegatheringstatechange", () => {
               if (pc && pc.iceGatheringState === "complete") {
                 clearTimeout(t);
@@ -197,15 +203,26 @@ export function Player({ whepUrl, hlsUrl, autoplay = true }: { whepUrl: string; 
           if (!res.ok) {
             teardownWhep();
             if (res.status === 404) {
-              // Stream not live yet — poll HLS until it comes up
+              // live/conclave-rtc not ready yet (ffmpeg transcode takes a few
+              // seconds to start after OBS connects). Retry WHEP directly so
+              // we catch it as soon as the path comes up — much faster than
+              // bailing to HLS polling. After MAX_WHEP_RETRIES give up and
+              // let HLS detect the stream instead.
+              whepRetries++;
               setStatus("offline");
-              retryTimeout = setTimeout(pollHls, 3000);
+              if (whepRetries < MAX_WHEP_RETRIES) {
+                retryTimeout = setTimeout(startWhep, 1500);
+              } else {
+                whepRetries = 0;
+                retryTimeout = setTimeout(pollHls, 2000);
+              }
             } else {
               pollHls();
             }
             return;
           }
 
+          whepRetries = 0;
           sessionUrl = res.headers.get("Location");
           const answer = await res.text();
           if (cancelled || !pc) return;
