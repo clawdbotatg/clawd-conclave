@@ -58,10 +58,10 @@ OBS will use:
 ## Deploy
 
 ```bash
-# on your local
-rsync -a packages/relay/.env zkllmapi:/home/ubuntu/clawd-conclave/packages/relay/.env
-rsync -a packages/nextjs/.env.production zkllmapi:/home/ubuntu/clawd-conclave/packages/nextjs/.env.production
-# (optional) rsync .env.stream similarly
+# on your local — rsync env files up (gitignored, so git pull won't move them)
+rsync -az packages/relay/.env.production zkllmapi:/home/ubuntu/clawd-conclave/packages/relay/.env
+rsync -az packages/nextjs/.env.production zkllmapi:/home/ubuntu/clawd-conclave/packages/nextjs/.env.production
+rsync -az .env.stream zkllmapi:/home/ubuntu/clawd-conclave/.env.stream
 
 # on the server
 ssh zkllmapi
@@ -71,6 +71,11 @@ CERTBOT_EMAIL=you@example.com bash infra/deploy/deploy.sh
 ```
 
 Re-running the script is safe — every step is idempotent.
+
+**Re-deploy after a small change:** if you only changed code, `git pull` +
+`infra/deploy/deploy.sh` is enough. If you changed an env value, **re-rsync
+the affected `.env` file first** — they're gitignored on both sides, so
+`git pull` never moves them.
 
 ## OBS
 
