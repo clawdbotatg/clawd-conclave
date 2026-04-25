@@ -111,36 +111,36 @@ const Overlay: NextPage = () => {
           bottom: 24px;
           display: flex;
           flex-direction: column;
-          gap: 10px;
-          max-width: 520px;
+          gap: 12px;
+          max-width: 600px;
         }
         .overlay-bubble {
           background: rgba(8, 8, 10, 0.82);
           backdrop-filter: blur(10px);
           -webkit-backdrop-filter: blur(10px);
           color: white;
-          padding: 10px 14px;
-          border-radius: 12px;
+          padding: 14px 18px;
+          border-radius: 14px;
           border: 1px solid rgba(255, 255, 255, 0.1);
           animation: slide-in 250ms ease-out, fade-out 1000ms ease-in forwards 9000ms;
           box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
         }
         .overlay-bubble-wallet {
-          font-size: 11px;
+          font-size: 14px;
           font-weight: 600;
           color: #c084fc;
           letter-spacing: 0.02em;
         }
         .overlay-bubble-body {
-          font-size: 18px;
+          font-size: 26px;
           line-height: 1.35;
-          margin-top: 2px;
+          margin-top: 3px;
           word-break: break-word;
         }
         .overlay-bubble-cost {
-          font-size: 10px;
+          font-size: 12px;
           color: rgba(255, 255, 255, 0.4);
-          margin-top: 4px;
+          margin-top: 5px;
           text-transform: uppercase;
           letter-spacing: 0.08em;
         }
