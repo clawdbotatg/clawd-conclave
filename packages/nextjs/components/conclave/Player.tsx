@@ -24,8 +24,14 @@ export function Player({ whepUrl, hlsUrl, autoplay = true }: { whepUrl: string; 
   const [status, setStatus] = useState<Status>("idle");
   const statusRef = useRef<Status>("idle");
   const [transport, setTransport] = useState<Transport>("none");
-  const [message, setMessage] = useState("");
   const [muted, setMuted] = useState(true);
+  const [dotCount, setDotCount] = useState(1);
+
+  useEffect(() => {
+    if (status === "playing") return;
+    const id = setInterval(() => setDotCount(d => (d % 3) + 1), 500);
+    return () => clearInterval(id);
+  }, [status]);
 
   // Keep statusRef in sync so the effect can read current status without
   // adding it to the dependency array (which would teardown/recreate WHEP).
@@ -106,7 +112,6 @@ export function Player({ whepUrl, hlsUrl, autoplay = true }: { whepUrl: string; 
           return;
         }
         setStatus("error");
-        setMessage("This browser can't play HLS.");
         return;
       }
 
@@ -277,14 +282,10 @@ export function Player({ whepUrl, hlsUrl, autoplay = true }: { whepUrl: string; 
         onVolumeChange={e => setMuted((e.target as HTMLVideoElement).muted)}
       />
       {status !== "playing" && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className="text-center text-base-content/50">
-            <div className="text-5xl mb-2">🦞</div>
-            {status === "offline" && <div className="text-sm">Stream offline — start OBS to go live.</div>}
-            {status === "connecting" && <div className="text-sm">Connecting via {transport}…</div>}
-            {status === "error" && <div className="text-sm text-error">{message || "Playback error"}</div>}
-            {status === "idle" && <div className="text-sm">Waiting…</div>}
-          </div>
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-white pointer-events-none">
+          <p className="text-lg font-semibold text-gray-800 mb-4 select-none">connecting{".".repeat(dotCount)}</p>
+          {}
+          <video src="/connecting.mp4" autoPlay loop muted playsInline className="max-w-sm w-full" />
         </div>
       )}
       {status === "playing" && (
