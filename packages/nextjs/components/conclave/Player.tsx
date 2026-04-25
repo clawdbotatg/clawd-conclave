@@ -282,10 +282,12 @@ export function Player({ whepUrl, hlsUrl, autoplay = true }: { whepUrl: string; 
         onVolumeChange={e => setMuted((e.target as HTMLVideoElement).muted)}
       />
       {status !== "playing" && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-white pointer-events-none">
-          <p className="text-lg font-semibold text-gray-800 mb-4 select-none">connecting{".".repeat(dotCount)}</p>
-          {}
-          <video src="/connecting.mp4" autoPlay loop muted playsInline className="max-w-sm w-full" />
+        <div className="absolute inset-0 flex items-center justify-center bg-black pointer-events-none">
+          <div className="bg-white rounded-2xl p-6 flex flex-col items-center">
+            <p className="text-lg font-semibold text-gray-800 mb-4 select-none">connecting{".".repeat(dotCount)}</p>
+            {}
+            <video src="/connecting.mp4" autoPlay loop muted playsInline className="w-48" />
+          </div>
         </div>
       )}
       {status === "playing" && (
