@@ -1,35 +1,29 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Address } from "@scaffold-ui/components";
 import type { NextPage } from "next";
+import { ChatMessage } from "~~/components/conclave/ChatMessage";
 import { useChatFeed } from "~~/hooks/conclave/useChatFeed";
 import type { ChatEvent } from "~~/utils/conclave/chat";
 
-const BUBBLE_LIFETIME_MS = 10_000;
+const BUBBLE_LIFETIME_MS = 25_000;
 
 type Bubble = ChatEvent & { bornAt: number };
-
-const shortAddress = (addr: string) => (addr.startsWith("0x") ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : addr);
 
 const Overlay: NextPage = () => {
   const { messages, connected } = useChatFeed();
   const [bubbles, setBubbles] = useState<Bubble[]>([]);
-  // Dev preview mode (?preview=1) shows a dark backdrop + connection status
-  // dot so you can see that the overlay is working before you wire it into
-  // OBS as a transparent browser source.
   const [preview, setPreview] = useState(false);
+
   useEffect(() => {
     if (typeof window === "undefined") return;
     setPreview(new URLSearchParams(window.location.search).has("preview"));
   }, []);
 
-  // Track which message ids we've already flown in, so the seed fetch
-  // doesn't spam the overlay with stale messages when OBS first loads.
   const [hasBootstrapped, setHasBootstrapped] = useState(false);
 
   useEffect(() => {
-    // On the very first population from the history fetch, skip the existing
-    // messages — we only want new traffic to animate in.
     if (!hasBootstrapped && messages.length > 0) {
       setHasBootstrapped(true);
       return;
@@ -42,7 +36,6 @@ const Overlay: NextPage = () => {
     });
   }, [messages, hasBootstrapped]);
 
-  // Reap old bubbles
   useEffect(() => {
     if (bubbles.length === 0) return;
     const id = setInterval(() => {
@@ -64,9 +57,8 @@ const Overlay: NextPage = () => {
       <div className="overlay-column">
         {bubbles.map(b => (
           <div key={b.id} className="overlay-bubble">
-            <div className="overlay-bubble-wallet">{shortAddress(b.wallet)}</div>
-            <div className="overlay-bubble-body">{b.body}</div>
-            <div className="overlay-bubble-cost">{b.cvCost} CV</div>
+            <Address address={b.wallet as `0x${string}`} disableAddressLink size="sm" />
+            <ChatMessage body={b.body} className="overlay-bubble-body" />
           </div>
         ))}
       </div>
@@ -107,49 +99,42 @@ const Overlay: NextPage = () => {
         }
         .overlay-column {
           position: absolute;
-          left: 24px;
+          right: 24px;
           bottom: 24px;
           display: flex;
           flex-direction: column;
-          gap: 12px;
-          max-width: 600px;
+          align-items: flex-end;
+          gap: 6px;
+          max-width: 480px;
         }
         .overlay-bubble {
-          background: rgba(8, 8, 10, 0.82);
+          background: rgba(8, 8, 10, 0.85);
           backdrop-filter: blur(10px);
           -webkit-backdrop-filter: blur(10px);
           color: white;
-          padding: 14px 18px;
+          padding: 10px 14px;
           border-radius: 14px;
           border: 1px solid rgba(255, 255, 255, 0.1);
-          animation: slide-in 250ms ease-out, fade-out 1000ms ease-in forwards 9000ms;
+          animation: slide-in 250ms ease-out, fade-out 1500ms ease-in forwards 23500ms;
           box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
-        }
-        .overlay-bubble-wallet {
-          font-size: 14px;
-          font-weight: 600;
-          color: #c084fc;
-          letter-spacing: 0.02em;
+          width: 100%;
         }
         .overlay-bubble-body {
-          font-size: 26px;
+          font-size: 22px;
           line-height: 1.35;
-          margin-top: 3px;
+          margin-top: 4px;
           word-break: break-word;
         }
-        .overlay-bubble-cost {
-          font-size: 12px;
-          color: rgba(255, 255, 255, 0.4);
-          margin-top: 5px;
-          text-transform: uppercase;
-          letter-spacing: 0.08em;
+        .overlay-bubble-body a {
+          color: #c084fc;
+          word-break: break-all;
         }
         @keyframes slide-in {
-          from { transform: translateX(-30px); opacity: 0; }
+          from { transform: translateX(30px); opacity: 0; }
           to { transform: translateX(0); opacity: 1; }
         }
         @keyframes fade-out {
-          to { opacity: 0; transform: translateX(0); }
+          to { opacity: 0; }
         }
       `}</style>
     </div>

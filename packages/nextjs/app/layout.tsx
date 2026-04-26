@@ -16,9 +16,9 @@ export const metadata = getMetadata({
  */
 const RootLayout = ({ children }: { children: React.ReactNode }) => {
   return (
-    <html suppressHydrationWarning>
+    <html data-theme="dark" suppressHydrationWarning>
       <body>
-        <ThemeProvider enableSystem>{children}</ThemeProvider>
+        <ThemeProvider forcedTheme="dark">{children}</ThemeProvider>
       </body>
     </html>
   );

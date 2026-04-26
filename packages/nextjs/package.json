@@ -35,6 +35,8 @@
     "react": "~19.2.3",
     "react-dom": "~19.2.3",
     "react-hot-toast": "~2.4.0",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
     "usehooks-ts": "~3.1.0",
     "viem": "2.39.0",
     "wagmi": "2.19.5",
