@@ -55,7 +55,7 @@ const Overlay: NextPage = () => {
         </div>
       )}
       <div className="overlay-column">
-        {bubbles.map(b => (
+        {[...bubbles].reverse().map(b => (
           <div key={b.id} className="overlay-bubble">
             <Address address={b.wallet as `0x${string}`} disableAddressLink size="sm" />
             <ChatMessage body={b.body} className="overlay-bubble-body" />
@@ -102,10 +102,12 @@ const Overlay: NextPage = () => {
           right: 24px;
           bottom: 24px;
           display: flex;
-          flex-direction: column;
+          flex-direction: column-reverse;
           align-items: flex-end;
           gap: 6px;
           max-width: 480px;
+          max-height: calc(100vh - 80px);
+          overflow: hidden;
         }
         .overlay-bubble {
           background: rgba(8, 8, 10, 0.85);
