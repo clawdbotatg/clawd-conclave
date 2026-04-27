@@ -17,22 +17,28 @@ const formatBytes = (n: number): string => {
 const Admin: NextPage = () => {
   const { address, isAdmin, isSignedIn, token, loading, isSigning, error, signIn, signOut } = useAdminAuth();
   const [status, setStatus] = useState<AdminStatus | null>(null);
+  const [statusLoaded, setStatusLoaded] = useState(false);
   const [fanouts, setFanouts] = useState<FanoutDestination[]>([]);
   const [busyFanout, setBusyFanout] = useState<string | null>(null);
 
   useEffect(() => {
     if (!token) {
       setStatus(null);
+      setStatusLoaded(false);
       setFanouts([]);
       return;
     }
     let cancelled = false;
     const load = async () => {
       const [s, f] = await Promise.all([fetchAdminStatus(token), fetchFanouts(token)]);
-      if (!cancelled) {
-        setStatus(s);
-        setFanouts(f);
+      if (cancelled) return;
+      if (s === "unauthorized") {
+        signOut();
+        return;
       }
+      setStatus(s);
+      setStatusLoaded(true);
+      setFanouts(f);
     };
     load();
     const id = setInterval(load, 5000);
@@ -40,7 +46,7 @@ const Admin: NextPage = () => {
       cancelled = true;
       clearInterval(id);
     };
-  }, [token]);
+  }, [token, signOut]);
 
   const handleFanoutToggle = async (id: string, action: "start" | "stop") => {
     if (!token) return;
@@ -125,9 +131,16 @@ const Admin: NextPage = () => {
         </button>
       </div>
 
-      {status === null ? (
+      {!statusLoaded ? (
         <div className="flex items-center justify-center py-10">
           <span className="loading loading-dots loading-md" />
+        </div>
+      ) : status === null ? (
+        <div className="flex flex-col items-center justify-center py-10 gap-3">
+          <p className="text-base-content/60 text-sm">Could not reach relay. Check your connection.</p>
+          <button className="btn btn-ghost btn-sm" onClick={signOut}>
+            Sign out and retry
+          </button>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

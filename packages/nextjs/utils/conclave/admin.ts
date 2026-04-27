@@ -94,14 +94,14 @@ export type AdminStatus = {
   mediamtxReachable: boolean;
 };
 
-export async function fetchAdminStatus(token: string): Promise<AdminStatus | null> {
+export async function fetchAdminStatus(token: string): Promise<AdminStatus | null | "unauthorized"> {
   if (!CONCLAVE_RELAY_URL || !token) return null;
   try {
     const res = await fetch(`${CONCLAVE_RELAY_URL}/admin/status`, {
       headers: { Authorization: `Bearer ${token}` },
       cache: "no-store",
     });
-    if (res.status === 401) return null;
+    if (res.status === 401) return "unauthorized";
     if (!res.ok) return null;
     return (await res.json()) as AdminStatus;
   } catch {
