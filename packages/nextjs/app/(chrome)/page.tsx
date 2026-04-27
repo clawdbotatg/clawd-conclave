@@ -71,7 +71,12 @@ const Home: NextPage = () => {
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+    const el = scrollRef.current;
+    if (!el) return;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    if (distanceFromBottom < 120) {
+      el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    }
   }, [messages.length]);
 
   const getSignature = async (): Promise<`0x${string}` | null> => {
@@ -135,8 +140,8 @@ const Home: NextPage = () => {
       </div>
 
       {/* Chat column */}
-      <div className="lg:w-96 flex flex-col bg-base-100 rounded-xl shadow overflow-hidden">
-        <div className="px-4 py-3 border-b border-base-300">
+      <div className="lg:w-96 flex flex-col bg-base-100 rounded-xl shadow overflow-hidden max-h-[calc(100dvh-6rem)] min-h-0">
+        <div className="px-4 py-3 border-b border-base-300 shrink-0">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
               <div className="relative w-8 h-8 shrink-0">
@@ -158,9 +163,10 @@ const Home: NextPage = () => {
           </div>
         </div>
 
-        <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-3 min-h-[40vh] lg:min-h-0">
+        <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto p-3 flex flex-col gap-3">
+          <div className="flex-1" />
           {messages.length === 0 ? (
-            <div className="text-center text-sm text-base-content/40 pt-8">The conclave is quiet. Say something.</div>
+            <div className="text-center text-sm text-base-content/40">The conclave is quiet. Say something.</div>
           ) : (
             messages.map(m => (
               <div key={m.id} className="flex flex-col">
@@ -175,15 +181,15 @@ const Home: NextPage = () => {
         </div>
 
         {!isConnected || !address ? (
-          <div className="border-t border-base-300 p-3 text-center text-sm text-base-content/60">
+          <div className="border-t border-base-300 p-3 text-center text-sm text-base-content/60 shrink-0">
             Connect your wallet to post ({CHAT_CV_COST} CV per message).
           </div>
         ) : !CONCLAVE_RELAY_URL ? (
-          <div className="border-t border-base-300 p-3 text-center text-xs text-warning">
+          <div className="border-t border-base-300 p-3 text-center text-xs text-warning shrink-0">
             <code>NEXT_PUBLIC_RELAY_URL</code> not set — chat disabled.
           </div>
         ) : (
-          <form onSubmit={handleSend} className="border-t border-base-300 p-3 space-y-2">
+          <form onSubmit={handleSend} className="border-t border-base-300 p-3 space-y-2 shrink-0">
             <textarea
               className="textarea textarea-bordered w-full resize-none text-sm"
               placeholder={`Say something (${CHAT_CV_COST} CV)…`}
