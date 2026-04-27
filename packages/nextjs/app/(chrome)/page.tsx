@@ -69,10 +69,17 @@ const Home: NextPage = () => {
   const [draft, setDraft] = useState("");
   const [posting, setPosting] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const prevMsgLengthRef = useRef(0);
 
   useEffect(() => {
     const el = scrollRef.current;
-    if (!el) return;
+    if (!el || messages.length === 0) return;
+    const isInitialLoad = prevMsgLengthRef.current === 0;
+    prevMsgLengthRef.current = messages.length;
+    if (isInitialLoad) {
+      el.scrollTop = el.scrollHeight;
+      return;
+    }
     const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
     if (distanceFromBottom < 120) {
       el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
