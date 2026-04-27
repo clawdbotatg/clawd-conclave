@@ -16,7 +16,7 @@ import { spawn } from "node:child_process";
  * we just remove it from the registry; user clicks Start again to respawn.
  */
 
-type FanoutId = "youtube";
+type FanoutId = "youtube" | "twitter";
 
 const registry = new Map<FanoutId, ChildProcess>();
 
@@ -37,13 +37,19 @@ function destinationUrl(id: FanoutId): string | null {
     const base = process.env.YOUTUBE_RTMP_URL || "rtmp://a.rtmp.youtube.com/live2";
     return `${base}/${key}`;
   }
+  if (id === "twitter") {
+    const key = process.env.TWITTER_STREAM_KEY;
+    if (!key) return null;
+    const base = process.env.TWITTER_RTMP_URL || "rtmps://live.pscp.tv:443/x";
+    return `${base}/${key}`;
+  }
   return null;
 }
 
 export function listFanouts(): FanoutDestination[] {
-  return (["youtube"] as const).map(id => ({
+  return (["youtube", "twitter"] as const).map(id => ({
     id,
-    name: id === "youtube" ? "YouTube Live" : id,
+    name: id === "youtube" ? "YouTube Live" : id === "twitter" ? "X / Twitter Live" : id,
     configured: destinationUrl(id) !== null,
     running: registry.has(id),
     startedAt: startedAts.get(id),
@@ -90,7 +96,7 @@ export function stopFanout(id: FanoutId): { ok: true } | { ok: false; error: str
 }
 
 export function isKnownFanoutId(id: string): id is FanoutId {
-  return id === "youtube";
+  return id === "youtube" || id === "twitter";
 }
 
 /**
