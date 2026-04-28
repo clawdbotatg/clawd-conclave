@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { Address } from "@scaffold-ui/components";
 import type { NextPage } from "next";
@@ -69,22 +69,50 @@ const Home: NextPage = () => {
   const [draft, setDraft] = useState("");
   const [posting, setPosting] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
-  const prevMsgLengthRef = useRef(0);
+  // Start "at bottom" so the first batch of messages auto-pins; flips to false only
+  // when the user actively scrolls away.
+  const isAtBottomRef = useRef(true);
 
+  // Track whether the user is reading the latest, so we don't yank them down
+  // when they've scrolled up to read history.
   useEffect(() => {
     const el = scrollRef.current;
+    if (!el) return;
+    const onScroll = () => {
+      isAtBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // Pin synchronously on new messages so the first paint already shows the bottom.
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
     if (!el || messages.length === 0) return;
-    const isInitialLoad = prevMsgLengthRef.current === 0;
-    prevMsgLengthRef.current = messages.length;
-    if (isInitialLoad) {
-      el.scrollTop = el.scrollHeight;
-      return;
-    }
-    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-    if (distanceFromBottom < 120) {
-      el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
-    }
+    if (isAtBottomRef.current) el.scrollTop = el.scrollHeight;
   }, [messages.length]);
+
+  // ReactMarkdown can grow message height after the layout effect ran (code blocks,
+  // remote font shifts, etc.). Re-pin whenever the scroll container resizes while the
+  // user is still parked at the bottom.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => {
+      if (isAtBottomRef.current) el.scrollTop = el.scrollHeight;
+    });
+    ro.observe(el);
+    for (const child of Array.from(el.children)) ro.observe(child);
+    const mo = new MutationObserver(() => {
+      for (const child of Array.from(el.children)) ro.observe(child);
+      if (isAtBottomRef.current) el.scrollTop = el.scrollHeight;
+    });
+    mo.observe(el, { childList: true });
+    return () => {
+      ro.disconnect();
+      mo.disconnect();
+    };
+  }, []);
 
   const getSignature = async (): Promise<`0x${string}` | null> => {
     if (!address) return null;
