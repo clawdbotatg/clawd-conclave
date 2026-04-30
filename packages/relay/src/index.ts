@@ -158,6 +158,86 @@ app.post<{ Body: ChatBody }>("/chat", async (req, reply) => {
   return { ok: true, id: inserted.id, newBalance: charge.newBalance };
 });
 
+// --- POST /confetti ---------------------------------------------------------
+// Pay-to-celebrate: spends a fixed CV amount and tells the overlay (and any
+// other subscribers) to drop a confetti burst. Same nonce/sig flow as /chat,
+// no DB row — confetti is ephemeral.
+
+const CONFETTI_CV_COST = 1_000_000;
+
+type ConfettiBody = {
+  wallet?: unknown;
+  signature?: unknown;
+  nonce?: unknown;
+  cvCost?: unknown;
+};
+
+app.post<{ Body: ConfettiBody }>("/confetti", async (req, reply) => {
+  const body = (req.body ?? {}) as ConfettiBody;
+  const wallet = typeof body.wallet === "string" ? body.wallet.toLowerCase() : "";
+  const signature = typeof body.signature === "string" ? body.signature : "";
+  const nonce = typeof body.nonce === "string" ? body.nonce : "";
+  const cvCost = typeof body.cvCost === "number" && Number.isFinite(body.cvCost) ? body.cvCost : CONFETTI_CV_COST;
+
+  if (!/^0x[a-f0-9]{40}$/.test(wallet)) return reply.code(400).send({ error: "Invalid wallet address" });
+  if (!/^0x[0-9a-fA-F]+$/.test(signature)) return reply.code(400).send({ error: "Invalid signature format" });
+  if (!nonce || nonce.length < 8 || nonce.length > 64) return reply.code(400).send({ error: "Invalid nonce" });
+  if (cvCost !== CONFETTI_CV_COST) {
+    return reply.code(400).send({ error: `cvCost must be ${CONFETTI_CV_COST}` });
+  }
+
+  const rl = checkRateLimit(wallet);
+  if (!rl.allowed) {
+    return reply
+      .code(429)
+      .send({ error: rl.reason === "too-fast" ? "Slow down" : "Too many posts; try later", retryAfterMs: rl.retryAfterMs });
+  }
+
+  const nonceInsert = await db
+    .insert(nonces)
+    .values({ wallet, nonce })
+    .onConflictDoNothing()
+    .returning({ nonce: nonces.nonce });
+  if (nonceInsert.length === 0) {
+    releaseRateLimit(wallet);
+    return reply.code(409).send({ error: "Nonce already used" });
+  }
+
+  const charge = await spendCv({ wallet, amount: cvCost, signature });
+  if (!charge.ok) {
+    releaseRateLimit(wallet);
+    return reply.code(charge.status === 402 ? 402 : 502).send({
+      error: charge.error,
+      code: charge.isSigError ? "bad_signature" : undefined,
+    });
+  }
+
+  const celebrationBody = "🎉👏🎊🎉";
+  const [inserted] = await db
+    .insert(messages)
+    .values({ wallet, body: celebrationBody, cvCost })
+    .returning({ id: messages.id, createdAt: messages.createdAt });
+  if (!inserted) {
+    app.log.error(
+      `[CONFETTI_RECONCILE] wallet=${wallet} charged=${cvCost} CV but message insert failed. Manual refund required.`,
+    );
+    return reply.code(500).send({ error: "Confetti charged but chat insert failed — contact support" });
+  }
+
+  const createdAt = inserted.createdAt.toISOString();
+  broadcast({
+    type: "chat",
+    id: inserted.id,
+    wallet,
+    body: celebrationBody,
+    cvCost,
+    createdAt,
+  });
+  broadcast({ type: "confetti", id: inserted.id, wallet, cvCost, createdAt });
+
+  return { ok: true, id: inserted.id, newBalance: charge.newBalance };
+});
+
 // --- WS /ws -----------------------------------------------------------------
 
 app.register(async function wsRoutes(fastify) {

@@ -20,7 +20,15 @@ export type ChatClearedEvent = {
   clearedAt: string;
 };
 
-export type RelayEvent = ChatEvent | ChatClearedEvent;
+export type ConfettiEvent = {
+  type: "confetti";
+  id: string;
+  wallet: string;
+  cvCost: number;
+  createdAt: string;
+};
+
+export type RelayEvent = ChatEvent | ChatClearedEvent | ConfettiEvent;
 
 const sockets = new Set<WebSocket>();
 

@@ -16,6 +16,7 @@ import {
   getCachedSignature,
   makeNonce,
   postChat,
+  postConfetti,
   setCachedSignature,
 } from "~~/utils/conclave/chat";
 import {
@@ -26,7 +27,8 @@ import {
   CONCLAVE_TOKEN_SYMBOL,
 } from "~~/utils/conclave/config";
 
-const CHAT_CV_COST = 1;
+const CHAT_CV_COST = 250_000;
+const CONFETTI_CV_COST = 1_000_000;
 
 const useCvBalance = (address: string | undefined) => {
   const [balance, setBalance] = useState<number | null>(null);
@@ -68,6 +70,7 @@ const Home: NextPage = () => {
   const { balance: cvBalance, refresh: refreshCv } = useCvBalance(address);
   const [draft, setDraft] = useState("");
   const [posting, setPosting] = useState(false);
+  const [confettiing, setConfettiing] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   // Start "at bottom" so the first batch of messages auto-pins; flips to false only
   // when the user actively scrolls away.
@@ -131,7 +134,7 @@ const Home: NextPage = () => {
     e.preventDefault();
     if (!address || !draft.trim() || posting) return;
     if (cvBalance !== null && cvBalance < CHAT_CV_COST) {
-      toast.error(`You need at least ${CHAT_CV_COST} CV. Stake more on larv.ai.`);
+      toast.error(`You need at least ${CHAT_CV_COST.toLocaleString()} CV. Stake more on larv.ai.`);
       return;
     }
 
@@ -162,6 +165,40 @@ const Home: NextPage = () => {
       refreshCv();
     } finally {
       setPosting(false);
+    }
+  };
+
+  const handleConfetti = async () => {
+    if (!address || confettiing) return;
+    if (cvBalance !== null && cvBalance < CONFETTI_CV_COST) {
+      toast.error(`You need at least ${CONFETTI_CV_COST.toLocaleString()} CV. Stake more on larv.ai.`);
+      return;
+    }
+    setConfettiing(true);
+    try {
+      const signature = await getSignature();
+      if (!signature) {
+        toast.error("Signature required");
+        return;
+      }
+      const result = await postConfetti({
+        wallet: address,
+        signature,
+        nonce: makeNonce(),
+        cvCost: CONFETTI_CV_COST,
+      });
+      if (!result.ok) {
+        if (result.code === "bad_signature") {
+          clearCachedSignature(address);
+          toast.error("Signature rejected — try again (you'll be re-prompted)");
+        } else {
+          toast.error(result.error);
+        }
+        return;
+      }
+      refreshCv();
+    } finally {
+      setConfettiing(false);
     }
   };
 
@@ -217,7 +254,7 @@ const Home: NextPage = () => {
 
         {!isConnected || !address ? (
           <div className="border-t border-base-300 p-3 text-center text-sm text-base-content/60 shrink-0">
-            Connect your wallet to post ({CHAT_CV_COST} CV per message).
+            Connect your wallet to post ({CHAT_CV_COST.toLocaleString()} CV per message).
           </div>
         ) : !CONCLAVE_RELAY_URL ? (
           <div className="border-t border-base-300 p-3 text-center text-xs text-warning shrink-0">
@@ -227,7 +264,7 @@ const Home: NextPage = () => {
           <form onSubmit={handleSend} className="border-t border-base-300 p-3 space-y-2 shrink-0">
             <textarea
               className="textarea textarea-bordered w-full resize-none text-sm"
-              placeholder={`Say something (${CHAT_CV_COST} CV)…`}
+              placeholder={`Say something (${CHAT_CV_COST.toLocaleString()} CV)…`}
               value={draft}
               onChange={e => setDraft(e.target.value)}
               rows={2}
@@ -243,9 +280,17 @@ const Home: NextPage = () => {
                 className="btn btn-primary btn-sm"
                 disabled={!draft.trim() || posting || isSigning || !canPost}
               >
-                {isSigning ? "sign in wallet…" : posting ? "posting…" : `Send (${CHAT_CV_COST} CV)`}
+                {isSigning ? "sign in wallet…" : posting ? "posting…" : `Send (${CHAT_CV_COST.toLocaleString()} CV)`}
               </button>
             </div>
+            <button
+              type="button"
+              onClick={handleConfetti}
+              className="btn btn-secondary btn-sm w-full"
+              disabled={confettiing || isSigning || !canPost}
+            >
+              {confettiing ? "dropping…" : `🎉 Confetti (${CONFETTI_CV_COST.toLocaleString()} CV)`}
+            </button>
           </form>
         )}
       </div>

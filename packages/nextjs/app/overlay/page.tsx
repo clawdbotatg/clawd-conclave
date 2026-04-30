@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Address } from "@scaffold-ui/components";
 import type { NextPage } from "next";
 import { ChatMessage } from "~~/components/conclave/ChatMessage";
@@ -8,11 +8,55 @@ import { useChatFeed } from "~~/hooks/conclave/useChatFeed";
 import type { ChatEvent } from "~~/utils/conclave/chat";
 
 const BUBBLE_LIFETIME_MS = 25_000;
+const CONFETTI_DURATION_MS = 6_000;
+const CONFETTI_PIECE_COUNT = 160;
 
 type Bubble = ChatEvent & { bornAt: number };
 
+type ConfettiPiece = {
+  id: string;
+  left: number;
+  delay: number;
+  duration: number;
+  drift: number;
+  rotate: number;
+  color: string;
+  size: number;
+};
+
+const CONFETTI_COLORS = ["#f43f5e", "#f59e0b", "#10b981", "#3b82f6", "#a855f7", "#ec4899", "#facc15"];
+
+const makeConfettiBurst = (key: string): ConfettiPiece[] =>
+  Array.from({ length: CONFETTI_PIECE_COUNT }, (_, i) => ({
+    id: `${key}-${i}`,
+    left: Math.random() * 100,
+    delay: Math.random() * 600,
+    duration: 2800 + Math.random() * 2200,
+    drift: (Math.random() - 0.5) * 240,
+    rotate: Math.random() * 720 - 360,
+    color: CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)]!,
+    size: 6 + Math.random() * 8,
+  }));
+
 const Overlay: NextPage = () => {
-  const { messages, connected } = useChatFeed();
+  const [confettiPieces, setConfettiPieces] = useState<ConfettiPiece[]>([]);
+  const confettiTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const triggerConfetti = useCallback((key: string) => {
+    if (confettiTimeoutRef.current) clearTimeout(confettiTimeoutRef.current);
+    setConfettiPieces(makeConfettiBurst(key));
+    confettiTimeoutRef.current = setTimeout(() => setConfettiPieces([]), CONFETTI_DURATION_MS);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (confettiTimeoutRef.current) clearTimeout(confettiTimeoutRef.current);
+    };
+  }, []);
+
+  const { messages, connected } = useChatFeed({
+    onConfetti: e => triggerConfetti(e.id),
+  });
   const [bubbles, setBubbles] = useState<Bubble[]>([]);
   const [preview, setPreview] = useState(false);
 
@@ -52,6 +96,9 @@ const Overlay: NextPage = () => {
           <span className={`overlay-dot ${connected ? "overlay-dot-on" : "overlay-dot-off"}`} />
           {connected ? "WS connected" : "WS disconnected"} · {bubbles.length} bubble{bubbles.length === 1 ? "" : "s"} ·
           preview mode (drop <code>?preview=1</code> before using in OBS)
+          <button type="button" className="overlay-devbutton" onClick={() => triggerConfetti(`preview-${Date.now()}`)}>
+            test confetti
+          </button>
         </div>
       )}
       <div className="overlay-column">
@@ -62,6 +109,26 @@ const Overlay: NextPage = () => {
           </div>
         ))}
       </div>
+      {confettiPieces.length > 0 && (
+        <div className="overlay-confetti">
+          {confettiPieces.map(p => (
+            <span
+              key={p.id}
+              className="overlay-confetti-piece"
+              style={{
+                left: `${p.left}%`,
+                width: `${p.size}px`,
+                height: `${p.size * 0.4}px`,
+                background: p.color,
+                animationDelay: `${p.delay}ms`,
+                animationDuration: `${p.duration}ms`,
+                ["--drift" as string]: `${p.drift}px`,
+                ["--rotate" as string]: `${p.rotate}deg`,
+              }}
+            />
+          ))}
+        </div>
+      )}
 
       <style>{`
         :root, html, body { background: transparent !important; }
@@ -137,6 +204,40 @@ const Overlay: NextPage = () => {
         }
         @keyframes fade-out {
           to { opacity: 0; }
+        }
+        .overlay-devbutton {
+          margin-left: 10px;
+          padding: 2px 8px;
+          border-radius: 6px;
+          background: rgba(255, 255, 255, 0.12);
+          color: #fff;
+          font-size: 11px;
+          border: 1px solid rgba(255, 255, 255, 0.18);
+          cursor: pointer;
+          pointer-events: auto;
+        }
+        .overlay-confetti {
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
+          pointer-events: none;
+        }
+        .overlay-confetti-piece {
+          position: absolute;
+          top: -20px;
+          border-radius: 2px;
+          animation-name: confetti-fall;
+          animation-timing-function: cubic-bezier(0.25, 0.4, 0.55, 1);
+          animation-fill-mode: forwards;
+          will-change: transform, opacity;
+        }
+        @keyframes confetti-fall {
+          0% { transform: translate3d(0, -20px, 0) rotate(0deg); opacity: 1; }
+          85% { opacity: 1; }
+          100% {
+            transform: translate3d(var(--drift, 0px), 110vh, 0) rotate(var(--rotate, 360deg));
+            opacity: 0;
+          }
         }
       `}</style>
     </div>
