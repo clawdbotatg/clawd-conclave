@@ -3,7 +3,7 @@ import { spawn } from "node:child_process";
 
 /**
  * Fanout manager: spawns ffmpeg children that re-publish the conclave
- * stream to external destinations (YouTube Live, Twitch, Restream).
+ * stream to external destinations (YouTube Live, Twitch, X/Twitter Live).
  *
  * Why this lives in the relay (not in MediaMTX's runOnReady): we want
  * admin-toggleable fanout. A streamer should be able to test OBS → conclave
@@ -11,19 +11,18 @@ import { spawn } from "node:child_process";
  * runs on the path's runOnReady, but only for the Opus transcode; external
  * restreams are started/stopped via /admin/fanouts.
  *
- * Restream covers X/Twitter and any other partner-gated networks: we push
- * to restream.io's RTMP ingest and Restream fans out to whatever channels
- * are connected on their dashboard. Direct X RTMP isn't supported because
- * X gates the broadcast endpoint behind per-broadcast keys generated in
- * studio.x.com; Restream is on X's partner allowlist and uses persistent
- * credentials.
+ * X/Twitter caveat: studio.x.com generates RTMP keys per-broadcast (or
+ * possibly per-recurring-series — TBD). If the key in .env.stream stops
+ * working, regenerate it in studio.x.com → Producer and update the env.
+ * If that becomes a recurring chore, route X through Restream instead
+ * (see git history for the restream destination).
  *
  * Process model: one long-lived ffmpeg per destination, `-c copy` so no
  * transcoding cost. If the child exits unexpectedly (crash, source drops),
  * we just remove it from the registry; user clicks Start again to respawn.
  */
 
-type FanoutId = "youtube" | "twitch" | "restream";
+type FanoutId = "youtube" | "twitch" | "twitter";
 
 const registry = new Map<FanoutId, ChildProcess>();
 
@@ -50,25 +49,25 @@ function destinationUrl(id: FanoutId): string | null {
     const base = process.env.TWITCH_RTMP_URL || "rtmp://live.twitch.tv/app";
     return `${base}/${key}`;
   }
-  if (id === "restream") {
-    const key = process.env.RESTREAM_STREAM_KEY;
+  if (id === "twitter") {
+    const key = process.env.TWITTER_STREAM_KEY;
     if (!key) return null;
-    const base = process.env.RESTREAM_RTMP_URL || "rtmp://live.restream.io/live";
+    const base = process.env.TWITTER_RTMP_URL || "rtmps://va.pscp.tv:443/x";
     return `${base}/${key}`;
   }
   return null;
 }
 
 export function listFanouts(): FanoutDestination[] {
-  return (["youtube", "twitch", "restream"] as const).map(id => ({
+  return (["youtube", "twitch", "twitter"] as const).map(id => ({
     id,
     name:
       id === "youtube"
         ? "YouTube Live"
         : id === "twitch"
           ? "Twitch"
-          : id === "restream"
-            ? "Restream (multi-fanout)"
+          : id === "twitter"
+            ? "X / Twitter Live"
             : id,
     configured: destinationUrl(id) !== null,
     running: registry.has(id),
@@ -116,7 +115,7 @@ export function stopFanout(id: FanoutId): { ok: true } | { ok: false; error: str
 }
 
 export function isKnownFanoutId(id: string): id is FanoutId {
-  return id === "youtube" || id === "twitch" || id === "restream";
+  return id === "youtube" || id === "twitch" || id === "twitter";
 }
 
 /**
