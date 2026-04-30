@@ -46,9 +46,14 @@ NEXT_PUBLIC_MEDIA_HLS_URL=https://media.larv.ai/live/conclave/index.m3u8
 MEDIAMTX_PUBLISH_USER=conclave
 MEDIAMTX_PUBLISH_PASS=<random hex>
 
-# Optional: auto-fanout to YouTube when a stream goes live.
+# Optional: admin-toggleable fanout destinations.
 YOUTUBE_STREAM_KEY=<from YouTube Studio>
 YOUTUBE_RTMP_URL=rtmp://a.rtmp.youtube.com/live2
+TWITCH_STREAM_KEY=<from dashboard.twitch.tv → Settings → Stream>
+TWITCH_RTMP_URL=rtmp://live.twitch.tv/app
+# Use Restream for X/Twitter and any other partner-gated networks.
+RESTREAM_STREAM_KEY=<from app.restream.io → Show → Connect your encoder>
+RESTREAM_RTMP_URL=rtmp://live.restream.io/live
 ```
 
 OBS will use:
