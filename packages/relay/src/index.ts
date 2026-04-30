@@ -311,6 +311,20 @@ app.post<{ Params: { id: string } }>("/admin/fanouts/:id/stop", async (req, repl
   return { ok: true };
 });
 
+// --- /admin/chat/clear ------------------------------------------------------
+// Wipes every chat message. Connected clients reset their feeds via the
+// chat-cleared broadcast. Used to start a fresh "session".
+
+app.post("/admin/chat/clear", async (req, reply) => {
+  const address = await requireAdmin(req, reply);
+  if (!address) return;
+  const deleted = await db.delete(messages).returning({ id: messages.id });
+  const clearedAt = new Date().toISOString();
+  broadcast({ type: "chat-cleared", clearedAt });
+  app.log.info(`[CHAT_CLEAR] admin=${address} removed=${deleted.length}`);
+  return { ok: true, removed: deleted.length, clearedAt };
+});
+
 // Cleanly terminate ffmpeg children on relay shutdown so YouTube sees a
 // proper "stream ended" rather than a drop.
 process.on("SIGTERM", () => shutdownAllFanouts());

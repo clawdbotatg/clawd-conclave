@@ -51,7 +51,12 @@ export function useChatFeed() {
       socket.onmessage = ev => {
         try {
           const data = JSON.parse(ev.data);
-          if (data.type === "chat") pushMessage(data as ChatEvent);
+          if (data.type === "chat") {
+            pushMessage(data as ChatEvent);
+          } else if (data.type === "chat-cleared") {
+            seenIds.current.clear();
+            setMessages([]);
+          }
         } catch {
           // ignore non-JSON frames
         }

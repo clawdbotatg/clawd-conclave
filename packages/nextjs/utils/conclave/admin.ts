@@ -150,3 +150,18 @@ export async function toggleFanout(
     return { ok: false, error: (err as Error).message };
   }
 }
+
+export async function clearChat(token: string): Promise<{ ok: true; removed: number } | { ok: false; error: string }> {
+  if (!CONCLAVE_RELAY_URL) return { ok: false, error: "Relay URL not set" };
+  try {
+    const res = await fetch(`${CONCLAVE_RELAY_URL}/admin/chat/clear`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = (await res.json().catch(() => ({}))) as { removed?: number; error?: string };
+    if (!res.ok) return { ok: false, error: data.error ?? `HTTP ${res.status}` };
+    return { ok: true, removed: data.removed ?? 0 };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
+  }
+}

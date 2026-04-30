@@ -5,7 +5,14 @@ import { Address } from "@scaffold-ui/components";
 import type { NextPage } from "next";
 import toast from "react-hot-toast";
 import { useAdminAuth } from "~~/hooks/conclave/useAdminAuth";
-import { AdminStatus, FanoutDestination, fetchAdminStatus, fetchFanouts, toggleFanout } from "~~/utils/conclave/admin";
+import {
+  AdminStatus,
+  FanoutDestination,
+  clearChat,
+  fetchAdminStatus,
+  fetchFanouts,
+  toggleFanout,
+} from "~~/utils/conclave/admin";
 
 const formatBytes = (n: number): string => {
   if (n < 1024) return `${n} B`;
@@ -20,6 +27,8 @@ const Admin: NextPage = () => {
   const [statusLoaded, setStatusLoaded] = useState(false);
   const [fanouts, setFanouts] = useState<FanoutDestination[]>([]);
   const [busyFanout, setBusyFanout] = useState<string | null>(null);
+  const [confirmClearChat, setConfirmClearChat] = useState(false);
+  const [clearingChat, setClearingChat] = useState(false);
 
   useEffect(() => {
     if (!token) {
@@ -47,6 +56,25 @@ const Admin: NextPage = () => {
       clearInterval(id);
     };
   }, [token, signOut]);
+
+  const handleClearChat = async () => {
+    if (!token) return;
+    if (!confirmClearChat) {
+      setConfirmClearChat(true);
+      // Reset the confirm prompt if the admin walks away.
+      setTimeout(() => setConfirmClearChat(false), 4000);
+      return;
+    }
+    setClearingChat(true);
+    const result = await clearChat(token);
+    setClearingChat(false);
+    setConfirmClearChat(false);
+    if (!result.ok) {
+      toast.error(result.error);
+    } else {
+      toast.success(`Chat cleared (${result.removed} removed)`);
+    }
+  };
 
   const handleFanoutToggle = async (id: string, action: "start" | "stop") => {
     if (!token) return;
@@ -210,6 +238,16 @@ const Admin: NextPage = () => {
                   <dd>{status.chat.chatCvCost} CV</dd>
                 </div>
               </dl>
+              <div className="card-actions justify-end mt-3">
+                <button
+                  className={`btn btn-sm ${confirmClearChat ? "btn-error" : "btn-error btn-outline"}`}
+                  onClick={handleClearChat}
+                  disabled={clearingChat}
+                  title="Wipe all chat messages and start a fresh session"
+                >
+                  {clearingChat ? "Clearing…" : confirmClearChat ? "Click again to confirm" : "Clear chat"}
+                </button>
+              </div>
             </div>
           </div>
 

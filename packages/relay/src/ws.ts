@@ -15,6 +15,13 @@ export type ChatEvent = {
   createdAt: string;
 };
 
+export type ChatClearedEvent = {
+  type: "chat-cleared";
+  clearedAt: string;
+};
+
+export type RelayEvent = ChatEvent | ChatClearedEvent;
+
 const sockets = new Set<WebSocket>();
 
 export function addSocket(socket: WebSocket) {
@@ -23,7 +30,7 @@ export function addSocket(socket: WebSocket) {
   socket.on("error", () => sockets.delete(socket));
 }
 
-export function broadcast(event: ChatEvent) {
+export function broadcast(event: RelayEvent) {
   const payload = JSON.stringify(event);
   for (const s of sockets) {
     // Type enum: 1 = OPEN (avoid importing `ws` just for the constant).
