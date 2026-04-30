@@ -8,6 +8,7 @@ Type=simple
 User=ubuntu
 WorkingDirectory=/home/ubuntu/clawd-conclave/packages/relay
 EnvironmentFile=/home/ubuntu/clawd-conclave/packages/relay/.env
+EnvironmentFile=-/home/ubuntu/clawd-conclave/.env.stream
 # tsx at runtime — TypeScript is transpiled on the fly. Fine for a low-QPS
 # Fastify server; swap for a compiled bundle if we ever care about cold-start.
 ExecStart=/usr/bin/node --import tsx/esm src/index.ts
