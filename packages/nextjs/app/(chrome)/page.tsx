@@ -28,7 +28,8 @@ import {
 } from "~~/utils/conclave/config";
 
 const CHAT_CV_COST = 250_000;
-const CONFETTI_CV_COST = 1_000_000;
+const CONFETTI_CV_COST = 500_000;
+const CONFETTI_MEGA_CV_COST = 1_000_000;
 
 const useCvBalance = (address: string | undefined) => {
   const [balance, setBalance] = useState<number | null>(null);
@@ -168,10 +169,10 @@ const Home: NextPage = () => {
     }
   };
 
-  const handleConfetti = async () => {
+  const handleConfetti = async (cost: number) => {
     if (!address || confettiing) return;
-    if (cvBalance !== null && cvBalance < CONFETTI_CV_COST) {
-      toast.error(`You need at least ${CONFETTI_CV_COST.toLocaleString()} CV. Stake more on larv.ai.`);
+    if (cvBalance !== null && cvBalance < cost) {
+      toast.error(`You need at least ${cost.toLocaleString()} CV. Stake more on larv.ai.`);
       return;
     }
     setConfettiing(true);
@@ -185,7 +186,7 @@ const Home: NextPage = () => {
         wallet: address,
         signature,
         nonce: makeNonce(),
-        cvCost: CONFETTI_CV_COST,
+        cvCost: cost,
       });
       if (!result.ok) {
         if (result.code === "bad_signature") {
@@ -283,14 +284,24 @@ const Home: NextPage = () => {
                 {isSigning ? "sign in wallet…" : posting ? "posting…" : `Send (${CHAT_CV_COST.toLocaleString()} CV)`}
               </button>
             </div>
-            <button
-              type="button"
-              onClick={handleConfetti}
-              className="btn btn-secondary btn-sm w-full"
-              disabled={confettiing || isSigning || !canPost}
-            >
-              {confettiing ? "dropping…" : `🎉 Confetti (${CONFETTI_CV_COST.toLocaleString()} CV)`}
-            </button>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => handleConfetti(CONFETTI_CV_COST)}
+                className="btn btn-secondary btn-sm"
+                disabled={confettiing || isSigning || !canPost}
+              >
+                {confettiing ? "dropping…" : `🎉 Confetti (${CONFETTI_CV_COST.toLocaleString()})`}
+              </button>
+              <button
+                type="button"
+                onClick={() => handleConfetti(CONFETTI_MEGA_CV_COST)}
+                className="btn btn-accent btn-sm"
+                disabled={confettiing || isSigning || !canPost}
+              >
+                {confettiing ? "dropping…" : `🎉🎊🎉 MEGA (${CONFETTI_MEGA_CV_COST.toLocaleString()})`}
+              </button>
+            </div>
           </form>
         )}
       </div>

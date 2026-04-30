@@ -9,7 +9,9 @@ import type { ChatEvent } from "~~/utils/conclave/chat";
 
 const BUBBLE_LIFETIME_MS = 25_000;
 const CONFETTI_DURATION_MS = 6_000;
-const CONFETTI_PIECE_COUNT = 160;
+const CONFETTI_BASE_PIECE_COUNT = 160;
+const CONFETTI_MEGA_THRESHOLD = 1_000_000;
+const CONFETTI_MEGA_MULTIPLIER = 3;
 
 type Bubble = ChatEvent & { bornAt: number };
 
@@ -26,25 +28,30 @@ type ConfettiPiece = {
 
 const CONFETTI_COLORS = ["#f43f5e", "#f59e0b", "#10b981", "#3b82f6", "#a855f7", "#ec4899", "#facc15"];
 
-const makeConfettiBurst = (key: string): ConfettiPiece[] =>
-  Array.from({ length: CONFETTI_PIECE_COUNT }, (_, i) => ({
+const makeConfettiBurst = (key: string, cvCost: number): ConfettiPiece[] => {
+  const isMega = cvCost >= CONFETTI_MEGA_THRESHOLD;
+  const count = isMega ? CONFETTI_BASE_PIECE_COUNT * CONFETTI_MEGA_MULTIPLIER : CONFETTI_BASE_PIECE_COUNT;
+  const sizeBoost = isMega ? 1.4 : 1;
+  const driftBoost = isMega ? 1.5 : 1;
+  return Array.from({ length: count }, (_, i) => ({
     id: `${key}-${i}`,
     left: Math.random() * 100,
-    delay: Math.random() * 600,
+    delay: Math.random() * (isMega ? 900 : 600),
     duration: 2800 + Math.random() * 2200,
-    drift: (Math.random() - 0.5) * 240,
+    drift: (Math.random() - 0.5) * 240 * driftBoost,
     rotate: Math.random() * 720 - 360,
     color: CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)]!,
-    size: 6 + Math.random() * 8,
+    size: (6 + Math.random() * 8) * sizeBoost,
   }));
+};
 
 const Overlay: NextPage = () => {
   const [confettiPieces, setConfettiPieces] = useState<ConfettiPiece[]>([]);
   const confettiTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const triggerConfetti = useCallback((key: string) => {
+  const triggerConfetti = useCallback((key: string, cvCost: number) => {
     if (confettiTimeoutRef.current) clearTimeout(confettiTimeoutRef.current);
-    setConfettiPieces(makeConfettiBurst(key));
+    setConfettiPieces(makeConfettiBurst(key, cvCost));
     confettiTimeoutRef.current = setTimeout(() => setConfettiPieces([]), CONFETTI_DURATION_MS);
   }, []);
 
@@ -55,7 +62,7 @@ const Overlay: NextPage = () => {
   }, []);
 
   const { messages, connected } = useChatFeed({
-    onConfetti: e => triggerConfetti(e.id),
+    onConfetti: e => triggerConfetti(e.id, e.cvCost),
   });
   const [bubbles, setBubbles] = useState<Bubble[]>([]);
   const [preview, setPreview] = useState(false);
@@ -96,8 +103,19 @@ const Overlay: NextPage = () => {
           <span className={`overlay-dot ${connected ? "overlay-dot-on" : "overlay-dot-off"}`} />
           {connected ? "WS connected" : "WS disconnected"} · {bubbles.length} bubble{bubbles.length === 1 ? "" : "s"} ·
           preview mode (drop <code>?preview=1</code> before using in OBS)
-          <button type="button" className="overlay-devbutton" onClick={() => triggerConfetti(`preview-${Date.now()}`)}>
+          <button
+            type="button"
+            className="overlay-devbutton"
+            onClick={() => triggerConfetti(`preview-${Date.now()}`, 500_000)}
+          >
             test confetti
+          </button>
+          <button
+            type="button"
+            className="overlay-devbutton"
+            onClick={() => triggerConfetti(`preview-mega-${Date.now()}`, 1_000_000)}
+          >
+            test MEGA
           </button>
         </div>
       )}

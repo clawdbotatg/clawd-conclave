@@ -163,7 +163,11 @@ app.post<{ Body: ChatBody }>("/chat", async (req, reply) => {
 // other subscribers) to drop a confetti burst. Same nonce/sig flow as /chat,
 // no DB row — confetti is ephemeral.
 
-const CONFETTI_CV_COST = 1_000_000;
+const CONFETTI_TIERS = {
+  500_000: { body: "🎉👏🎊🎉" },
+  1_000_000: { body: "🎉🎊🎉👏🎊🎉🎊👏🎉" },
+} as const;
+const CONFETTI_VALID_COSTS = Object.keys(CONFETTI_TIERS).map(Number);
 
 type ConfettiBody = {
   wallet?: unknown;
@@ -177,13 +181,14 @@ app.post<{ Body: ConfettiBody }>("/confetti", async (req, reply) => {
   const wallet = typeof body.wallet === "string" ? body.wallet.toLowerCase() : "";
   const signature = typeof body.signature === "string" ? body.signature : "";
   const nonce = typeof body.nonce === "string" ? body.nonce : "";
-  const cvCost = typeof body.cvCost === "number" && Number.isFinite(body.cvCost) ? body.cvCost : CONFETTI_CV_COST;
+  const cvCost = typeof body.cvCost === "number" && Number.isFinite(body.cvCost) ? body.cvCost : 0;
 
   if (!/^0x[a-f0-9]{40}$/.test(wallet)) return reply.code(400).send({ error: "Invalid wallet address" });
   if (!/^0x[0-9a-fA-F]+$/.test(signature)) return reply.code(400).send({ error: "Invalid signature format" });
   if (!nonce || nonce.length < 8 || nonce.length > 64) return reply.code(400).send({ error: "Invalid nonce" });
-  if (cvCost !== CONFETTI_CV_COST) {
-    return reply.code(400).send({ error: `cvCost must be ${CONFETTI_CV_COST}` });
+  const tier = CONFETTI_TIERS[cvCost as keyof typeof CONFETTI_TIERS];
+  if (!tier) {
+    return reply.code(400).send({ error: `cvCost must be one of ${CONFETTI_VALID_COSTS.join(", ")}` });
   }
 
   const rl = checkRateLimit(wallet);
@@ -212,7 +217,7 @@ app.post<{ Body: ConfettiBody }>("/confetti", async (req, reply) => {
     });
   }
 
-  const celebrationBody = "🎉👏🎊🎉";
+  const celebrationBody = tier.body;
   const [inserted] = await db
     .insert(messages)
     .values({ wallet, body: celebrationBody, cvCost })
