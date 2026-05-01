@@ -12,8 +12,8 @@ const CONFETTI_DURATION_MS = 6_000;
 const CONFETTI_BASE_PIECE_COUNT = 160;
 const CONFETTI_MEGA_THRESHOLD = 1_000_000;
 const CONFETTI_MEGA_MULTIPLIER = 3;
-const REACTION_DURATION_MS = 4_500;
-const REACTION_PIECE_COUNT = 22;
+const REACTION_DURATION_MS = 6_000;
+const REACTION_PIECE_COUNT = 40;
 
 type Bubble = ChatEvent & { bornAt: number };
 
@@ -36,6 +36,7 @@ type ReactionPiece = {
   delay: number;
   duration: number;
   drift: number;
+  rotate: number;
   size: number;
   emoji: string;
 };
@@ -44,11 +45,12 @@ const makeReactionBurst = (key: string, kind: ReactionKind): ReactionPiece[] => 
   const emoji = kind === "up" ? "👍" : "👎";
   return Array.from({ length: REACTION_PIECE_COUNT }, (_, i) => ({
     id: `${key}-${i}`,
-    left: 10 + Math.random() * 80,
-    delay: Math.random() * 600,
-    duration: 2600 + Math.random() * 1400,
-    drift: (Math.random() - 0.5) * 140,
-    size: 32 + Math.random() * 28,
+    left: Math.random() * 100,
+    delay: Math.random() * 800,
+    duration: 3000 + Math.random() * 2200,
+    drift: (Math.random() - 0.5) * 220,
+    rotate: Math.random() * 540 - 270,
+    size: 28 + Math.random() * 26,
     emoji,
   }));
 };
@@ -208,6 +210,7 @@ const Overlay: NextPage = () => {
                 animationDelay: `${p.delay}ms`,
                 animationDuration: `${p.duration}ms`,
                 ["--drift" as string]: `${p.drift}px`,
+                ["--rotate" as string]: `${p.rotate}deg`,
               }}
             >
               {p.emoji}
@@ -333,20 +336,19 @@ const Overlay: NextPage = () => {
         }
         .overlay-reaction-piece {
           position: absolute;
-          bottom: -60px;
+          top: -60px;
           line-height: 1;
           filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.35));
-          animation-name: reaction-rise;
-          animation-timing-function: cubic-bezier(0.2, 0.6, 0.2, 1);
+          animation-name: reaction-fall;
+          animation-timing-function: cubic-bezier(0.25, 0.4, 0.55, 1);
           animation-fill-mode: forwards;
           will-change: transform, opacity;
         }
-        @keyframes reaction-rise {
-          0% { transform: translate3d(0, 0, 0) scale(0.6); opacity: 0; }
-          15% { opacity: 1; transform: translate3d(0, -20px, 0) scale(1); }
-          80% { opacity: 1; }
+        @keyframes reaction-fall {
+          0% { transform: translate3d(0, -60px, 0) rotate(0deg); opacity: 1; }
+          85% { opacity: 1; }
           100% {
-            transform: translate3d(var(--drift, 0px), -110vh, 0) scale(1);
+            transform: translate3d(var(--drift, 0px), 110vh, 0) rotate(var(--rotate, 360deg));
             opacity: 0;
           }
         }
