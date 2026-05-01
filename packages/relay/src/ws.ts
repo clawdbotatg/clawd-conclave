@@ -28,7 +28,16 @@ export type ConfettiEvent = {
   createdAt: string;
 };
 
-export type RelayEvent = ChatEvent | ChatClearedEvent | ConfettiEvent;
+export type ReactionEvent = {
+  type: "reaction";
+  id: string;
+  wallet: string;
+  kind: "up" | "down";
+  cvCost: number;
+  createdAt: string;
+};
+
+export type RelayEvent = ChatEvent | ChatClearedEvent | ConfettiEvent | ReactionEvent;
 
 const sockets = new Set<WebSocket>();
 

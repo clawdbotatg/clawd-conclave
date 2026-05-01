@@ -5,13 +5,15 @@ import { Address } from "@scaffold-ui/components";
 import type { NextPage } from "next";
 import { ChatMessage } from "~~/components/conclave/ChatMessage";
 import { useChatFeed } from "~~/hooks/conclave/useChatFeed";
-import type { ChatEvent } from "~~/utils/conclave/chat";
+import type { ChatEvent, ReactionKind } from "~~/utils/conclave/chat";
 
 const BUBBLE_LIFETIME_MS = 25_000;
 const CONFETTI_DURATION_MS = 6_000;
 const CONFETTI_BASE_PIECE_COUNT = 160;
 const CONFETTI_MEGA_THRESHOLD = 1_000_000;
 const CONFETTI_MEGA_MULTIPLIER = 3;
+const REACTION_DURATION_MS = 4_500;
+const REACTION_PIECE_COUNT = 22;
 
 type Bubble = ChatEvent & { bornAt: number };
 
@@ -27,6 +29,29 @@ type ConfettiPiece = {
 };
 
 const CONFETTI_COLORS = ["#f43f5e", "#f59e0b", "#10b981", "#3b82f6", "#a855f7", "#ec4899", "#facc15"];
+
+type ReactionPiece = {
+  id: string;
+  left: number;
+  delay: number;
+  duration: number;
+  drift: number;
+  size: number;
+  emoji: string;
+};
+
+const makeReactionBurst = (key: string, kind: ReactionKind): ReactionPiece[] => {
+  const emoji = kind === "up" ? "👍" : "👎";
+  return Array.from({ length: REACTION_PIECE_COUNT }, (_, i) => ({
+    id: `${key}-${i}`,
+    left: 10 + Math.random() * 80,
+    delay: Math.random() * 600,
+    duration: 2600 + Math.random() * 1400,
+    drift: (Math.random() - 0.5) * 140,
+    size: 32 + Math.random() * 28,
+    emoji,
+  }));
+};
 
 const makeConfettiBurst = (key: string, cvCost: number): ConfettiPiece[] => {
   const isMega = cvCost >= CONFETTI_MEGA_THRESHOLD;
@@ -47,12 +72,21 @@ const makeConfettiBurst = (key: string, cvCost: number): ConfettiPiece[] => {
 
 const Overlay: NextPage = () => {
   const [confettiPieces, setConfettiPieces] = useState<ConfettiPiece[]>([]);
+  const [reactionPieces, setReactionPieces] = useState<ReactionPiece[]>([]);
   const confettiTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const triggerConfetti = useCallback((key: string, cvCost: number) => {
     if (confettiTimeoutRef.current) clearTimeout(confettiTimeoutRef.current);
     setConfettiPieces(makeConfettiBurst(key, cvCost));
     confettiTimeoutRef.current = setTimeout(() => setConfettiPieces([]), CONFETTI_DURATION_MS);
+  }, []);
+
+  const triggerReaction = useCallback((key: string, kind: ReactionKind) => {
+    const burst = makeReactionBurst(key, kind);
+    setReactionPieces(prev => [...prev, ...burst]);
+    setTimeout(() => {
+      setReactionPieces(prev => prev.filter(p => !burst.some(b => b.id === p.id)));
+    }, REACTION_DURATION_MS);
   }, []);
 
   useEffect(() => {
@@ -63,6 +97,7 @@ const Overlay: NextPage = () => {
 
   const { messages, connected } = useChatFeed({
     onConfetti: e => triggerConfetti(e.id, e.cvCost),
+    onReaction: e => triggerReaction(e.id, e.kind),
   });
   const [bubbles, setBubbles] = useState<Bubble[]>([]);
   const [preview, setPreview] = useState(false);
@@ -117,6 +152,20 @@ const Overlay: NextPage = () => {
           >
             test MEGA
           </button>
+          <button
+            type="button"
+            className="overlay-devbutton"
+            onClick={() => triggerReaction(`preview-up-${Date.now()}`, "up")}
+          >
+            test 👍
+          </button>
+          <button
+            type="button"
+            className="overlay-devbutton"
+            onClick={() => triggerReaction(`preview-down-${Date.now()}`, "down")}
+          >
+            test 👎
+          </button>
         </div>
       )}
       <div className="overlay-column">
@@ -144,6 +193,25 @@ const Overlay: NextPage = () => {
                 ["--rotate" as string]: `${p.rotate}deg`,
               }}
             />
+          ))}
+        </div>
+      )}
+      {reactionPieces.length > 0 && (
+        <div className="overlay-reactions">
+          {reactionPieces.map(p => (
+            <span
+              key={p.id}
+              className="overlay-reaction-piece"
+              style={{
+                left: `${p.left}%`,
+                fontSize: `${p.size}px`,
+                animationDelay: `${p.delay}ms`,
+                animationDuration: `${p.duration}ms`,
+                ["--drift" as string]: `${p.drift}px`,
+              }}
+            >
+              {p.emoji}
+            </span>
           ))}
         </div>
       )}
@@ -254,6 +322,31 @@ const Overlay: NextPage = () => {
           85% { opacity: 1; }
           100% {
             transform: translate3d(var(--drift, 0px), 110vh, 0) rotate(var(--rotate, 360deg));
+            opacity: 0;
+          }
+        }
+        .overlay-reactions {
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
+          pointer-events: none;
+        }
+        .overlay-reaction-piece {
+          position: absolute;
+          bottom: -60px;
+          line-height: 1;
+          filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.35));
+          animation-name: reaction-rise;
+          animation-timing-function: cubic-bezier(0.2, 0.6, 0.2, 1);
+          animation-fill-mode: forwards;
+          will-change: transform, opacity;
+        }
+        @keyframes reaction-rise {
+          0% { transform: translate3d(0, 0, 0) scale(0.6); opacity: 0; }
+          15% { opacity: 1; transform: translate3d(0, -20px, 0) scale(1); }
+          80% { opacity: 1; }
+          100% {
+            transform: translate3d(var(--drift, 0px), -110vh, 0) scale(1);
             opacity: 0;
           }
         }

@@ -19,6 +19,17 @@ export type ConfettiEvent = {
   createdAt: string;
 };
 
+export type ReactionKind = "up" | "down";
+
+export type ReactionEvent = {
+  type: "reaction";
+  id: string;
+  wallet: string;
+  kind: ReactionKind;
+  cvCost: number;
+  createdAt: string;
+};
+
 const sigKey = (address: string) => `conclave:cv-sig:${address.toLowerCase()}`;
 
 export const getCachedSignature = (address: string): `0x${string}` | null => {
@@ -97,6 +108,44 @@ export async function postConfetti(params: {
   let res: Response;
   try {
     res = await fetch(`${CONCLAVE_RELAY_URL}/confetti`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(params),
+    });
+  } catch (err) {
+    return { ok: false, status: 0, error: (err as Error).message };
+  }
+  const data = (await res.json().catch(() => ({}))) as {
+    ok?: boolean;
+    id?: string;
+    newBalance?: number;
+    error?: string;
+    code?: string;
+  };
+  if (!res.ok) {
+    return {
+      ok: false,
+      status: res.status,
+      error: data.error ?? `Relay returned HTTP ${res.status}`,
+      code: data.code === "bad_signature" ? "bad_signature" : undefined,
+    };
+  }
+  return { ok: true, id: data.id ?? "", newBalance: data.newBalance };
+}
+
+export async function postReaction(params: {
+  wallet: string;
+  signature: string;
+  nonce: string;
+  cvCost: number;
+  kind: ReactionKind;
+}): Promise<PostChatResult> {
+  if (!CONCLAVE_RELAY_URL) {
+    return { ok: false, status: 0, error: "Relay URL not configured (set NEXT_PUBLIC_RELAY_URL)" };
+  }
+  let res: Response;
+  try {
+    res = await fetch(`${CONCLAVE_RELAY_URL}/reaction`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(params),

@@ -1,19 +1,24 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ChatEvent, ConfettiEvent, chatWsUrl, fetchRecentChat } from "~~/utils/conclave/chat";
+import { ChatEvent, ConfettiEvent, ReactionEvent, chatWsUrl, fetchRecentChat } from "~~/utils/conclave/chat";
 
 /**
  * Loads recent chat history, then keeps it live via WebSocket. Dedupe by id
  * so the seed fetch and the WS event don't double-up a message posted while
  * we were connecting.
  */
-export function useChatFeed(opts?: { onConfetti?: (e: ConfettiEvent) => void }) {
+export function useChatFeed(opts?: {
+  onConfetti?: (e: ConfettiEvent) => void;
+  onReaction?: (e: ReactionEvent) => void;
+}) {
   const [messages, setMessages] = useState<ChatEvent[]>([]);
   const [connected, setConnected] = useState(false);
   const seenIds = useRef<Set<string>>(new Set());
   const onConfettiRef = useRef(opts?.onConfetti);
   onConfettiRef.current = opts?.onConfetti;
+  const onReactionRef = useRef(opts?.onReaction);
+  onReactionRef.current = opts?.onReaction;
 
   useEffect(() => {
     let cancelled = false;
@@ -60,6 +65,8 @@ export function useChatFeed(opts?: { onConfetti?: (e: ConfettiEvent) => void }) 
             setMessages([]);
           } else if (data.type === "confetti") {
             onConfettiRef.current?.(data as ConfettiEvent);
+          } else if (data.type === "reaction") {
+            onReactionRef.current?.(data as ReactionEvent);
           }
         } catch {
           // ignore non-JSON frames

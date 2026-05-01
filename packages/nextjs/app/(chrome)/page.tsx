@@ -17,8 +17,10 @@ import {
   makeNonce,
   postChat,
   postConfetti,
+  postReaction,
   setCachedSignature,
 } from "~~/utils/conclave/chat";
+import type { ReactionKind } from "~~/utils/conclave/chat";
 import {
   CONCLAVE_CV_API_BASE_URL,
   CONCLAVE_MEDIA_HLS_URL,
@@ -30,6 +32,7 @@ import {
 const CHAT_CV_COST = 250_000;
 const CONFETTI_CV_COST = 500_000;
 const CONFETTI_MEGA_CV_COST = 1_000_000;
+const REACTION_CV_COST = 100_000;
 
 const useCvBalance = (address: string | undefined) => {
   const [balance, setBalance] = useState<number | null>(null);
@@ -71,7 +74,7 @@ const Home: NextPage = () => {
   const { balance: cvBalance, refresh: refreshCv } = useCvBalance(address);
   const [draft, setDraft] = useState("");
   const [posting, setPosting] = useState(false);
-  const [confettiing, setConfettiing] = useState(false);
+  const [reacting, setReacting] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   // Start "at bottom" so the first batch of messages auto-pins; flips to false only
   // when the user actively scrolls away.
@@ -170,12 +173,12 @@ const Home: NextPage = () => {
   };
 
   const handleConfetti = async (cost: number) => {
-    if (!address || confettiing) return;
+    if (!address || reacting) return;
     if (cvBalance !== null && cvBalance < cost) {
       toast.error(`You need at least ${cost.toLocaleString()} CV. Stake more on larv.ai.`);
       return;
     }
-    setConfettiing(true);
+    setReacting(true);
     try {
       const signature = await getSignature();
       if (!signature) {
@@ -199,7 +202,42 @@ const Home: NextPage = () => {
       }
       refreshCv();
     } finally {
-      setConfettiing(false);
+      setReacting(false);
+    }
+  };
+
+  const handleReaction = async (kind: ReactionKind) => {
+    if (!address || reacting) return;
+    if (cvBalance !== null && cvBalance < REACTION_CV_COST) {
+      toast.error(`You need at least ${REACTION_CV_COST.toLocaleString()} CV. Stake more on larv.ai.`);
+      return;
+    }
+    setReacting(true);
+    try {
+      const signature = await getSignature();
+      if (!signature) {
+        toast.error("Signature required");
+        return;
+      }
+      const result = await postReaction({
+        wallet: address,
+        signature,
+        nonce: makeNonce(),
+        cvCost: REACTION_CV_COST,
+        kind,
+      });
+      if (!result.ok) {
+        if (result.code === "bad_signature") {
+          clearCachedSignature(address);
+          toast.error("Signature rejected — try again (you'll be re-prompted)");
+        } else {
+          toast.error(result.error);
+        }
+        return;
+      }
+      refreshCv();
+    } finally {
+      setReacting(false);
     }
   };
 
@@ -284,22 +322,42 @@ const Home: NextPage = () => {
                 {isSigning ? "sign in wallet…" : posting ? "posting…" : `Send (${CHAT_CV_COST.toLocaleString()} CV)`}
               </button>
             </div>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-4 gap-1">
               <button
                 type="button"
                 onClick={() => handleConfetti(CONFETTI_CV_COST)}
-                className="btn btn-secondary btn-sm"
-                disabled={confettiing || isSigning || !canPost}
+                className="btn btn-secondary btn-xs"
+                disabled={reacting || isSigning || !canPost}
+                title={`Confetti — ${CONFETTI_CV_COST.toLocaleString()} CV`}
               >
-                {confettiing ? "dropping…" : `🎉 Confetti (${CONFETTI_CV_COST.toLocaleString()})`}
+                🎉 500k
               </button>
               <button
                 type="button"
                 onClick={() => handleConfetti(CONFETTI_MEGA_CV_COST)}
-                className="btn btn-accent btn-sm"
-                disabled={confettiing || isSigning || !canPost}
+                className="btn btn-secondary btn-xs"
+                disabled={reacting || isSigning || !canPost}
+                title={`MEGA confetti — ${CONFETTI_MEGA_CV_COST.toLocaleString()} CV`}
               >
-                {confettiing ? "dropping…" : `🎉🎊🎉 MEGA (${CONFETTI_MEGA_CV_COST.toLocaleString()})`}
+                🎉🎊 1M
+              </button>
+              <button
+                type="button"
+                onClick={() => handleReaction("up")}
+                className="btn btn-secondary btn-xs"
+                disabled={reacting || isSigning || !canPost}
+                title={`Thumbs up — ${REACTION_CV_COST.toLocaleString()} CV`}
+              >
+                👍 100k
+              </button>
+              <button
+                type="button"
+                onClick={() => handleReaction("down")}
+                className="btn btn-secondary btn-xs"
+                disabled={reacting || isSigning || !canPost}
+                title={`Thumbs down — ${REACTION_CV_COST.toLocaleString()} CV`}
+              >
+                👎 100k
               </button>
             </div>
           </form>
