@@ -55,6 +55,10 @@ TWITCH_RTMP_URL=rtmp://live.twitch.tv/app
 # if fanout fails. The va.pscp.tv host is region-specific (US-East).
 TWITTER_STREAM_KEY=<from studio.x.com → Producer → External encoder / RTMP Source>
 TWITTER_RTMP_URL=rtmps://va.pscp.tv:443/x
+# Kick uses Amazon IVS ingest; URL + key both come from kick.com → Stream Settings.
+# The URL is per-channel (sharded subdomain), so set both vars together.
+KICK_STREAM_KEY=<sk_us-... from kick.com Stream Settings>
+KICK_RTMP_URL=<rtmps://...global-contribute.live-video.net/ from kick.com Stream Settings>
 ```
 
 OBS will use:

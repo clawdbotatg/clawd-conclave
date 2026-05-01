@@ -22,7 +22,7 @@ import { spawn } from "node:child_process";
  * we just remove it from the registry; user clicks Start again to respawn.
  */
 
-type FanoutId = "youtube" | "twitch" | "twitter";
+type FanoutId = "youtube" | "twitch" | "twitter" | "kick";
 
 const registry = new Map<FanoutId, ChildProcess>();
 
@@ -55,11 +55,22 @@ function destinationUrl(id: FanoutId): string | null {
     const base = process.env.TWITTER_RTMP_URL || "rtmps://va.pscp.tv:443/x";
     return `${base}/${key}`;
   }
+  if (id === "kick") {
+    const key = process.env.KICK_STREAM_KEY;
+    if (!key) return null;
+    // Kick uses Amazon IVS ingest; the publish URL is per-channel and lives
+    // in the broadcaster's Stream tab. Strip a trailing slash so the final
+    // URL has exactly one slash before the key.
+    const raw = process.env.KICK_RTMP_URL ?? "";
+    const base = raw.replace(/\/$/, "");
+    if (!base) return null;
+    return `${base}/${key}`;
+  }
   return null;
 }
 
 export function listFanouts(): FanoutDestination[] {
-  return (["youtube", "twitch", "twitter"] as const).map(id => ({
+  return (["youtube", "twitch", "twitter", "kick"] as const).map(id => ({
     id,
     name:
       id === "youtube"
@@ -68,7 +79,9 @@ export function listFanouts(): FanoutDestination[] {
           ? "Twitch"
           : id === "twitter"
             ? "X / Twitter Live"
-            : id,
+            : id === "kick"
+              ? "Kick"
+              : id,
     configured: destinationUrl(id) !== null,
     running: registry.has(id),
     startedAt: startedAts.get(id),
@@ -115,7 +128,7 @@ export function stopFanout(id: FanoutId): { ok: true } | { ok: false; error: str
 }
 
 export function isKnownFanoutId(id: string): id is FanoutId {
-  return id === "youtube" || id === "twitch" || id === "twitter";
+  return id === "youtube" || id === "twitch" || id === "twitter" || id === "kick";
 }
 
 /**
