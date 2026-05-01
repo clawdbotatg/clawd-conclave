@@ -14,6 +14,13 @@ import {
   toggleFanout,
 } from "~~/utils/conclave/admin";
 
+const FANOUT_WATCH_URLS: Record<string, string> = {
+  youtube: "https://www.youtube.com/watch?v=61fbaFFi4yw",
+  twitch: "https://www.twitch.tv/austinethereum",
+  twitter: "https://x.com/austingriffith",
+  kick: "https://dashboard.kick.com/stream",
+};
+
 const formatBytes = (n: number): string => {
   if (n < 1024) return `${n} B`;
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
@@ -292,48 +299,66 @@ const Admin: NextPage = () => {
                 <div className="text-sm text-base-content/50 mt-2">No destinations configured.</div>
               ) : (
                 <div className="space-y-2 mt-2">
-                  {fanouts.map(f => (
-                    <div
-                      key={f.id}
-                      className="flex items-center justify-between border border-base-300 rounded-lg px-3 py-2"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={`badge ${f.running ? "badge-error animate-pulse" : f.configured ? "badge-neutral" : "badge-warning"}`}
-                        >
-                          {f.running ? "LIVE" : f.configured ? "off" : "unconfigured"}
+                  {fanouts.map(f => {
+                    const watchUrl = FANOUT_WATCH_URLS[f.id];
+                    return (
+                      <div
+                        key={f.id}
+                        className="flex items-center justify-between border border-base-300 rounded-lg px-3 py-2"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={`badge ${f.running ? "badge-error animate-pulse" : f.configured ? "badge-neutral" : "badge-warning"}`}
+                          >
+                            {f.running ? "LIVE" : f.configured ? "off" : "unconfigured"}
+                          </div>
+                          <div>
+                            <div className="font-bold text-sm">{f.name}</div>
+                            {f.startedAt && (
+                              <div className="text-xs text-base-content/50">
+                                started {new Date(f.startedAt).toLocaleTimeString()}
+                              </div>
+                            )}
+                          </div>
                         </div>
-                        <div>
-                          <div className="font-bold text-sm">{f.name}</div>
-                          {f.startedAt && (
-                            <div className="text-xs text-base-content/50">
-                              started {new Date(f.startedAt).toLocaleTimeString()}
-                            </div>
+                        <div className="flex items-center gap-2">
+                          {watchUrl && (
+                            <a
+                              href={watchUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="btn btn-ghost btn-sm"
+                              title={`Open ${f.name} in a new tab`}
+                            >
+                              Watch ↗
+                            </a>
+                          )}
+                          {f.configured && !f.running && (
+                            <button
+                              className="btn btn-primary btn-sm"
+                              disabled={busyFanout === f.id || !status.publishing.ready}
+                              onClick={() => handleFanoutToggle(f.id, "start")}
+                              title={status.publishing.ready ? "Start fanout" : "OBS must be publishing first"}
+                            >
+                              {busyFanout === f.id ? "…" : "Start fanout"}
+                            </button>
+                          )}
+                          {f.running && (
+                            <button
+                              className="btn btn-error btn-sm btn-outline"
+                              disabled={busyFanout === f.id}
+                              onClick={() => handleFanoutToggle(f.id, "stop")}
+                            >
+                              {busyFanout === f.id ? "…" : "Stop"}
+                            </button>
+                          )}
+                          {!f.configured && (
+                            <div className="text-xs text-base-content/50">missing key in .env.stream</div>
                           )}
                         </div>
                       </div>
-                      {f.configured && !f.running && (
-                        <button
-                          className="btn btn-primary btn-sm"
-                          disabled={busyFanout === f.id || !status.publishing.ready}
-                          onClick={() => handleFanoutToggle(f.id, "start")}
-                          title={status.publishing.ready ? "Start fanout" : "OBS must be publishing first"}
-                        >
-                          {busyFanout === f.id ? "…" : "Start fanout"}
-                        </button>
-                      )}
-                      {f.running && (
-                        <button
-                          className="btn btn-error btn-sm btn-outline"
-                          disabled={busyFanout === f.id}
-                          onClick={() => handleFanoutToggle(f.id, "stop")}
-                        >
-                          {busyFanout === f.id ? "…" : "Stop"}
-                        </button>
-                      )}
-                      {!f.configured && <div className="text-xs text-base-content/50">missing key in .env.stream</div>}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
