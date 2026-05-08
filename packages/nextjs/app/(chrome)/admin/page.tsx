@@ -21,6 +21,12 @@ const FANOUT_WATCH_URLS: Record<string, string> = {
   kick: "https://dashboard.kick.com/stream",
 };
 
+const FANOUT_ADMIN_URLS: Record<string, string> = {
+  youtube: "https://studio.youtube.com/channel/UC_HI2i2peo1A-STdG22GFsA",
+  twitch: "https://www.twitch.tv/austinethereum",
+  twitter: "https://studio.x.com/producer/broadcasts/",
+};
+
 const formatBytes = (n: number): string => {
   if (n < 1024) return `${n} B`;
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
@@ -247,6 +253,13 @@ const Admin: NextPage = () => {
               </dl>
               <div className="card-actions justify-end mt-3">
                 <button
+                  className="btn btn-sm btn-outline"
+                  onClick={() => copy("Chat link", window.location.origin)}
+                  title="Copy a shareable link to the chat for token holders"
+                >
+                  Copy chat link
+                </button>
+                <button
                   className={`btn btn-sm ${confirmClearChat ? "btn-error" : "btn-error btn-outline"}`}
                   onClick={handleClearChat}
                   disabled={clearingChat}
@@ -301,6 +314,7 @@ const Admin: NextPage = () => {
                 <div className="space-y-2 mt-2">
                   {fanouts.map(f => {
                     const watchUrl = FANOUT_WATCH_URLS[f.id];
+                    const adminUrl = FANOUT_ADMIN_URLS[f.id];
                     return (
                       <div
                         key={f.id}
@@ -331,6 +345,17 @@ const Admin: NextPage = () => {
                               title={`Open ${f.name} in a new tab`}
                             >
                               Watch ↗
+                            </a>
+                          )}
+                          {adminUrl && (
+                            <a
+                              href={adminUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="btn btn-ghost btn-sm"
+                              title={`Open ${f.name} studio/admin in a new tab`}
+                            >
+                              Admin ↗
                             </a>
                           )}
                           {f.configured && !f.running && (
