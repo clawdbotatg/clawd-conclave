@@ -3,6 +3,7 @@ import {
   baseAccount,
   ledgerWallet,
   metaMaskWallet,
+  phantomWallet,
   rainbowWallet,
   safeWallet,
   walletConnectWallet,
@@ -19,6 +20,7 @@ const showBurnerWallet =
 
 const wallets = [
   metaMaskWallet,
+  phantomWallet,
   walletConnectWallet,
   ledgerWallet,
   baseAccount,
