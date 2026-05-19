@@ -32,11 +32,22 @@ const isPhantomInjected = () =>
   typeof window !== "undefined" &&
   Boolean((window as unknown as { phantom?: { ethereum?: unknown } }).phantom?.ethereum);
 
-// Custom Phantom wallet: the built-in RainbowKit phantomWallet is injected-only,
-// so it never appears in the connect modal on mobile browsers outside Phantom's
-// in-app browser. This config adds a WalletConnect path with a `phantom://wc`
-// deeplink so Phantom shows on mobile and falls back to the injected provider
-// when the desktop extension is present.
+// Custom Phantom wallet entry.
+//
+// Phantom does NOT support WalletConnect v2 for EVM on mobile — per Phantom's
+// docs, deeplinks are Solana-only, and EVM mobile support is exclusively via
+// their in-app browser's injected provider. A `phantom://wc?uri=...` handoff
+// is silently dropped, which is why earlier attempts opened Phantom but
+// showed no connect prompt.
+//
+// Strategy:
+//   - Inside Phantom's in-app browser (or with the desktop extension):
+//     `window.phantom.ethereum` is injected → use wagmi's `injected` connector.
+//   - On regular mobile browsers (Safari/Chrome): deeplink to
+//     `https://phantom.app/ul/browse/<dapp>?ref=<origin>`, which opens our
+//     dApp inside Phantom's in-app browser where the injected path takes over.
+//   - On desktop without the extension: show install instructions (no QR,
+//     since Phantom mobile cannot complete a WC EVM session).
 const phantomWallet = (params: { projectId: string }): Wallet => {
   const useInjected = isPhantomInjected();
   return {
@@ -56,28 +67,38 @@ const phantomWallet = (params: { projectId: string }): Wallet => {
       browserExtension: "https://phantom.app/download",
     },
     mobile: {
-      getUri: useInjected ? undefined : (uri: string) => `phantom://wc?uri=${encodeURIComponent(uri)}`,
-    },
-    qrCode: useInjected
-      ? undefined
-      : {
-          getUri: (uri: string) => uri,
-          instructions: {
-            learnMoreUrl: "https://phantom.app/learn",
-            steps: [
-              {
-                description: "Install the Phantom app on your phone if you haven't already.",
-                step: "install",
-                title: "Install Phantom",
-              },
-              {
-                description: "Open Phantom, tap the QR scanner, and scan this code to connect.",
-                step: "scan",
-                title: "Scan the QR code",
-              },
-            ],
+      // Ignore the WC URI input; Phantom can't consume it for EVM. Hand the
+      // user off to Phantom's in-app browser at our dApp URL instead.
+      getUri: useInjected
+        ? undefined
+        : () => {
+            const dapp = typeof window !== "undefined" ? window.location.href : "https://conclave.larv.ai";
+            const ref = typeof window !== "undefined" ? window.location.origin : "https://conclave.larv.ai";
+            return `https://phantom.app/ul/browse/${encodeURIComponent(dapp)}?ref=${encodeURIComponent(ref)}`;
           },
-        },
+    },
+    extension: {
+      instructions: {
+        learnMoreUrl: "https://phantom.app/learn",
+        steps: [
+          {
+            description: "Install the Phantom browser extension for Chrome, Brave, Firefox, or Edge.",
+            step: "install",
+            title: "Install the Phantom extension",
+          },
+          {
+            description: "Create a new wallet or import an existing one.",
+            step: "create",
+            title: "Create or import a wallet",
+          },
+          {
+            description: "Once the extension is set up, refresh this page and tap Phantom again.",
+            step: "refresh",
+            title: "Refresh this page",
+          },
+        ],
+      },
+    },
     createConnector: useInjected
       ? (walletDetails: WalletDetailsParams) =>
           createConnector(config => {
@@ -90,7 +111,10 @@ const phantomWallet = (params: { projectId: string }): Wallet => {
             })(config);
             return { ...injectedConnector, ...walletDetails };
           })
-      : getWalletConnectConnector({ projectId: params.projectId }),
+      : // Non-injected path: the user will be deeplinked into Phantom's in-app
+        // browser before this connector is ever exercised. We still need a
+        // valid factory for RainbowKit's wiring — WC is the lightest option.
+        getWalletConnectConnector({ projectId: params.projectId }),
   };
 };
 
